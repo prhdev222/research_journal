@@ -70,10 +70,10 @@
     }
 
     .app {
-      width: min(1240px, 100%);
+      width: min(1600px, 100%);
       min-height: 100vh;
       margin: 0 auto;
-      padding: 16px;
+      padding: 12px;
       padding-bottom: calc(90px + env(safe-area-inset-bottom));
     }
 
@@ -143,8 +143,8 @@
 
     .workspace {
       display: grid;
-      grid-template-columns: minmax(260px, 0.9fr) minmax(0, 1.55fr) minmax(300px, 0.82fr);
-      gap: 16px;
+      grid-template-columns: minmax(300px, 360px) minmax(520px, 1fr) minmax(300px, 360px);
+      gap: 14px;
       align-items: start;
     }
     .mode-select {
@@ -190,13 +190,13 @@
     .project-panel { grid-column: 1; grid-row: 1; }
     .journal-panel { grid-column: 1; grid-row: 2; }
     .room-panel { grid-column: 1; grid-row: 3; }
-    .output-shell { grid-column: 2; grid-row: 1 / span 2; }
+    .output-shell { grid-column: 2; grid-row: 1 / span 3; }
     .control-panel { grid-column: 3; grid-row: 1; }
     .history-panel { grid-column: 3; grid-row: 2; }
     .panel {
       border: 1px solid var(--line);
       border-radius: var(--radius);
-      background: var(--glass);
+      background: rgba(255, 253, 247, 0.96);
       box-shadow: var(--shadow);
       backdrop-filter: blur(14px);
       overflow: hidden;
@@ -452,7 +452,7 @@
     }
     .paper-text {
       min-height: 130px;
-      max-height: 220px;
+      max-height: 190px;
       overflow: auto;
       padding: 10px;
       border: 1px solid var(--line);
@@ -512,6 +512,8 @@
 
     .output-shell {
       min-height: calc(100vh - 132px);
+      position: sticky;
+      top: 96px;
       display: flex;
       flex-direction: column;
     }
@@ -583,8 +585,34 @@
     .history {
       display: grid;
       gap: 8px;
-      max-height: 42vh;
+      max-height: 34vh;
       overflow: auto;
+    }
+
+    @media (min-width: 981px) {
+      body[data-workspace-mode="journal"] .project-panel {
+        display: none;
+      }
+      body[data-workspace-mode="journal"] .journal-panel {
+        grid-row: 1;
+      }
+      body[data-workspace-mode="journal"] .room-panel {
+        grid-row: 2 / span 2;
+      }
+      body[data-workspace-mode="journal"] .paper-text {
+        max-height: 160px;
+      }
+      body[data-workspace-mode="journal"] .room-feed {
+        max-height: 190px;
+      }
+      body[data-workspace-mode="journal"] .control-panel,
+      body[data-workspace-mode="journal"] .history-panel {
+        position: sticky;
+        top: 96px;
+      }
+      body[data-workspace-mode="journal"] .history-panel {
+        top: 620px;
+      }
     }
     .history-item {
       padding: 10px;
@@ -687,6 +715,11 @@
       }
       .output-shell {
         min-height: auto;
+        position: static;
+      }
+      .control-panel,
+      .history-panel {
+        position: static;
       }
       .control-panel { order: 3; }
       .output-shell { order: 2; }
@@ -1266,6 +1299,7 @@
     }
 
     function renderWorkspaceMode() {
+      document.body.dataset.workspaceMode = workspaceMode;
       els.researchModeBtn.classList.toggle("active", workspaceMode === "research");
       els.journalModeBtn.classList.toggle("active", workspaceMode === "journal");
       els.journalPanel.classList.toggle("hidden", workspaceMode !== "journal");
