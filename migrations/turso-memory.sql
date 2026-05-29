@@ -38,3 +38,31 @@ CREATE TABLE IF NOT EXISTS meeting_turns (
   content TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS journal_rooms (
+  code TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  paper_title TEXT,
+  paper_url TEXT,
+  paper_summary TEXT,
+  created_by TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS room_messages (
+  id TEXT PRIMARY KEY,
+  room_code TEXT NOT NULL,
+  author TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  content TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS room_outputs (
+  id TEXT PRIMARY KEY,
+  room_code TEXT NOT NULL,
+  label TEXT NOT NULL,
+  content TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);

@@ -88,6 +88,21 @@ anywhere until the user taps `Analyze paper`.
 Professor Neo is a senior professor-style expert opinion agent for journal
 analysis, research critique, reviewer-style questions, and practical next steps.
 
+### Shared Journal Club Rooms
+
+Journal Club mode includes shared rooms when Turso is configured.
+
+- Admin/member creates a room and receives a short room code.
+- Others join with the same room code after logging in.
+- Room comments sync through Turso with lightweight polling.
+- AI does not run for every comment; it runs only when someone taps
+  `Meet Agents`.
+- The meeting prompt includes the latest compact room discussion.
+- The final AI meeting output is saved back to the room for everyone.
+
+Rooms store compact comments and AI outputs only. They should not be used for
+patient identifiers or private clinical records.
+
 Use the `Thai` button beside the result to translate the current answer into
 professional Thai through the server-side OpenRouter route. The translator keeps
 headings, bullets, statistics, abbreviations, and citations.

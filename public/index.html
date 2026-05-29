@@ -189,6 +189,7 @@
     }
     .project-panel { grid-column: 1; grid-row: 1; }
     .journal-panel { grid-column: 1; grid-row: 2; }
+    .room-panel { grid-column: 1; grid-row: 3; }
     .output-shell { grid-column: 2; grid-row: 1 / span 2; }
     .control-panel { grid-column: 3; grid-row: 1; }
     .history-panel { grid-column: 3; grid-row: 2; }
@@ -462,6 +463,52 @@
       line-height: 1.45;
       white-space: pre-wrap;
     }
+    .room-card {
+      display: grid;
+      gap: 6px;
+      padding: 10px;
+      border: 1px solid rgba(20, 107, 114, 0.16);
+      border-radius: var(--radius);
+      background: rgba(20, 107, 114, 0.06);
+      color: var(--muted-ink);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .room-code {
+      color: var(--graphite);
+      font-size: 18px;
+      font-weight: 900;
+      letter-spacing: 0;
+    }
+    .room-feed {
+      display: grid;
+      gap: 8px;
+      max-height: 240px;
+      overflow: auto;
+      padding-right: 2px;
+    }
+    .room-message {
+      padding: 9px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--paper-raised);
+      font-size: 12px;
+      line-height: 1.4;
+      white-space: pre-wrap;
+    }
+    .room-message.system { background: rgba(159, 38, 57, 0.06); }
+    .room-message.ai { background: rgba(20, 107, 114, 0.08); }
+    .room-message-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 4px;
+      color: var(--faint-ink);
+      font-size: 10.5px;
+      font-weight: 850;
+      text-transform: uppercase;
+    }
+    .room-comment { min-height: 76px; }
 
     .output-shell {
       min-height: calc(100vh - 132px);
@@ -631,6 +678,7 @@
       }
       .project-panel,
       .journal-panel,
+      .room-panel,
       .output-shell,
       .control-panel,
       .history-panel {
@@ -795,6 +843,36 @@
           <div class="paper-meta" id="paperMeta">No paper loaded yet.</div>
           <div class="paper-text" id="paperTextPreview">Upload a PDF/text file or read a paper link to prepare Journal Club analysis.</div>
           <button class="primary" id="journalClubBtn" type="button">Analyze paper</button>
+        </div>
+      </section>
+
+      <section class="panel room-panel" id="roomPanel">
+        <div class="panel-head">
+          <h2 class="panel-title">Journal Club Room</h2>
+          <button class="secondary" id="syncRoomBtn" type="button">Sync</button>
+        </div>
+        <div class="panel-body field-stack">
+          <label>
+            Your name
+            <input id="roomNameInput" autocomplete="name" placeholder="e.g. Uraree">
+          </label>
+          <label>
+            Room code
+            <input id="roomCodeInput" autocomplete="off" autocapitalize="characters" placeholder="e.g. JEDA24">
+          </label>
+          <div class="button-row">
+            <button class="secondary" id="joinRoomBtn" type="button">Join</button>
+            <button class="primary" id="createRoomBtn" type="button">Create</button>
+          </div>
+          <div class="room-card" id="roomMeta">
+            <span>No shared room joined.</span>
+          </div>
+          <div class="room-feed" id="roomFeed"></div>
+          <label>
+            Comment or question
+            <textarea id="roomCommentInput" class="room-comment" placeholder="Add one compact journal club comment or question."></textarea>
+          </label>
+          <button class="secondary" id="postRoomBtn" type="button">Post to room</button>
         </div>
       </section>
 
@@ -1002,6 +1080,7 @@
     let activeAgent = state.activeAgent || defaultAgent(workspaceMode);
     let responseMode = state.responseMode || "short";
     let busy = false;
+    let roomPollTimer = null;
 
     const els = {
       title: document.getElementById("titleInput"),
@@ -1012,6 +1091,12 @@
       paperFile: document.getElementById("paperFileInput"),
       paperMeta: document.getElementById("paperMeta"),
       paperPreview: document.getElementById("paperTextPreview"),
+      roomPanel: document.getElementById("roomPanel"),
+      roomName: document.getElementById("roomNameInput"),
+      roomCode: document.getElementById("roomCodeInput"),
+      roomMeta: document.getElementById("roomMeta"),
+      roomFeed: document.getElementById("roomFeed"),
+      roomComment: document.getElementById("roomCommentInput"),
       activeMeeting: document.getElementById("activeMeetingInput"),
       journalPanel: document.getElementById("journalPanel"),
       agentPanelTitle: document.getElementById("agentPanelTitle"),
@@ -1069,9 +1154,14 @@
     document.getElementById("paperFileInput").addEventListener("change", readPaperFile);
     document.getElementById("journalClubBtn").addEventListener("click", analyzeJournalClub);
     document.getElementById("clearPaperBtn").addEventListener("click", clearPaper);
+    document.getElementById("createRoomBtn").addEventListener("click", createRoom);
+    document.getElementById("joinRoomBtn").addEventListener("click", joinRoom);
+    document.getElementById("syncRoomBtn").addEventListener("click", syncRoom);
+    document.getElementById("postRoomBtn").addEventListener("click", postRoomMessage);
     document.getElementById("inviteStrip").addEventListener("click", inviteFollowup);
 
     render();
+    startRoomPolling();
 
     function loadState() {
       try {
@@ -1084,6 +1174,7 @@
         activeAgent: "summary",
         responseMode: "short",
         activeProjectId: id,
+        roomName: "",
         projects: [{
           id,
           title: "Untitled research note",
@@ -1099,6 +1190,7 @@
       state.workspaceMode = workspaceMode;
       state.activeAgent = activeAgent;
       state.responseMode = responseMode;
+      state.roomName = els.roomName?.value || state.roomName || "";
       localStorage.setItem(storeKey, JSON.stringify(state));
     }
 
@@ -1113,7 +1205,10 @@
       els.topic.value = project.topic || "";
       els.journal.value = project.journal || "generic";
       els.paperUrl.value = project.paperUrl || "";
+      els.roomName.value = state.roomName || "";
+      els.roomCode.value = project.roomCode || "";
       renderPaper(project);
+      renderRoom(project);
       els.activeTitle.textContent = project.title || "Untitled research note";
       els.activeLabel.textContent = `${agentName(activeAgent)} / ${modeName(responseMode)}`;
       renderWorkspaceMode();
@@ -1123,6 +1218,7 @@
       renderProjects();
       renderHistory();
       if (project.lastOutput) setOutput(project.lastOutput);
+      startRoomPolling();
     }
 
     function renderAgents() {
@@ -1169,8 +1265,10 @@
       els.researchModeBtn.classList.toggle("active", workspaceMode === "research");
       els.journalModeBtn.classList.toggle("active", workspaceMode === "journal");
       els.journalPanel.classList.toggle("hidden", workspaceMode !== "journal");
+      els.roomPanel.classList.toggle("hidden", workspaceMode !== "journal");
       els.agentPanelTitle.textContent = workspaceMode === "journal" ? "Journal Club Agents" : "Research Agents";
       if (!busy) els.status.textContent = workspaceMode === "journal" ? "Journal club" : "Research journal";
+      startRoomPolling();
     }
 
     function setWorkspaceMode(nextMode) {
@@ -1241,6 +1339,7 @@
       project.topic = els.topic.value.trim();
       project.journal = els.journal.value;
       project.paperUrl = els.paperUrl.value.trim();
+      state.roomName = els.roomName.value.trim();
       persist();
       renderProjects();
       els.activeTitle.textContent = project.title;
@@ -1307,6 +1406,10 @@
         paperUrl: "",
         paperTitle: "",
         paperText: "",
+        roomCode: "",
+        room: null,
+        roomMessages: [],
+        roomOutputs: [],
         customPrompts: {},
         history: []
       });
@@ -1374,7 +1477,8 @@
         toast("Choose 2-4 meeting agents.");
         return;
       }
-      const question = els.question.value.trim() || project.topic || project.paperTitle;
+      const roomContext = roomDiscussionContext(project);
+      const question = [els.question.value.trim() || project.topic || project.paperTitle, roomContext].filter(Boolean).join("\n\n");
       if (!question && !project.paperText) {
         toast("Add a meeting question or load a paper.");
         return;
@@ -1419,6 +1523,7 @@
         persist();
         setOutput(output);
         renderHistory();
+        if (project.roomCode) await saveRoomOutput(output);
         toast(data.memory_enabled ? "Meeting saved with compact Turso memory." : "Meeting complete. Turso memory is not configured.");
       } catch (error) {
         setOutput(`Error: ${error.message}\n\nCheck API keys, Turso settings, and Cloudflare logs.`);
@@ -1540,6 +1645,216 @@
       els.paperPreview.textContent = text
         ? text.slice(0, 1800) + (text.length > 1800 ? "\n\n..." : "")
         : "Upload a PDF/text file or read a paper link to prepare Journal Club analysis.";
+    }
+
+    function renderRoom(project) {
+      const room = project.room;
+      if (!project.roomCode || !room) {
+        els.roomMeta.innerHTML = `<span>No shared room joined.</span>`;
+        els.roomFeed.innerHTML = `<p class="project-topic">Create or join a room to share comments with journal club members.</p>`;
+        return;
+      }
+      els.roomMeta.innerHTML = [
+        `<span class="room-code">${escapeHtml(project.roomCode)}</span>`,
+        `<span>${escapeHtml(room.title || "Journal Club Room")}</span>`,
+        room.paper_title ? `<span>${escapeHtml(room.paper_title)}</span>` : "",
+        `<span>${(project.roomMessages || []).length} comments · ${(project.roomOutputs || []).length} AI outputs</span>`
+      ].filter(Boolean).join("");
+      const messages = (project.roomMessages || []).map(message => ({
+        ...message,
+        label: message.author,
+        className: message.kind === "system" ? "system" : "",
+        content: message.content
+      }));
+      const outputs = (project.roomOutputs || []).map(output => ({
+        ...output,
+        author: output.label || "AI Meeting",
+        kind: "ai",
+        className: "ai",
+        content: output.content
+      }));
+      const feed = [...messages, ...outputs]
+        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+        .slice(-50);
+      els.roomFeed.innerHTML = feed.length
+        ? feed.map(item => `
+          <article class="room-message ${item.className || ""}">
+            <div class="room-message-top">
+              <span>${escapeHtml(item.author || item.label || "Member")}</span>
+              <span>${new Date(item.created_at).toLocaleTimeString()}</span>
+            </div>
+            <div>${escapeHtml(item.content)}</div>
+          </article>
+        `).join("")
+        : `<p class="project-topic">No room messages yet.</p>`;
+      els.roomFeed.scrollTop = els.roomFeed.scrollHeight;
+    }
+
+    async function createRoom() {
+      if (busy) return;
+      saveProject(false);
+      const project = activeProject();
+      setBusy(true);
+      try {
+        const data = await roomRequest({
+          action: "create",
+          code: normalizeRoomCode(els.roomCode.value),
+          title: project.title || project.paperTitle || "Journal Club Room",
+          paperTitle: project.paperTitle || project.title || "",
+          paperUrl: project.paperUrl || "",
+          paperSummary: (project.paperText || project.topic || "").slice(0, 1600),
+          author: roomAuthor()
+        });
+        applyRoomData(data);
+        els.roomCode.value = activeProject().roomCode;
+        workspaceMode = "journal";
+        persist();
+        render();
+        toast(`Room created: ${activeProject().roomCode}`);
+      } catch (error) {
+        toast(error.message);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function joinRoom() {
+      if (busy) return;
+      const code = normalizeRoomCode(els.roomCode.value);
+      if (!code) {
+        toast("Enter a room code first.");
+        return;
+      }
+      setBusy(true);
+      try {
+        const data = await roomRequest({ action: "join", code });
+        applyRoomData(data);
+        workspaceMode = "journal";
+        persist();
+        render();
+        toast(`Joined room ${activeProject().roomCode}.`);
+      } catch (error) {
+        toast(error.message);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function syncRoom(showToast = true) {
+      const project = activeProject();
+      const code = normalizeRoomCode(project.roomCode || els.roomCode.value);
+      if (!code || workspaceMode !== "journal") return;
+      try {
+        const res = await fetch(`/api/rooms?code=${encodeURIComponent(code)}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Room sync failed.");
+        applyRoomData(data);
+        if (showToast) toast("Room synced.");
+      } catch (error) {
+        if (showToast) toast(error.message);
+      }
+    }
+
+    async function postRoomMessage() {
+      if (busy) return;
+      const project = activeProject();
+      const code = normalizeRoomCode(project.roomCode || els.roomCode.value);
+      const content = els.roomComment.value.trim();
+      if (!code) {
+        toast("Join or create a room first.");
+        return;
+      }
+      if (!content) {
+        toast("Write a comment first.");
+        return;
+      }
+      setBusy(true);
+      try {
+        const data = await roomRequest({
+          action: "message",
+          code,
+          author: roomAuthor(),
+          kind: "comment",
+          content
+        });
+        els.roomComment.value = "";
+        applyRoomData(data);
+        toast("Posted to room.");
+      } catch (error) {
+        toast(error.message);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function saveRoomOutput(output) {
+      const project = activeProject();
+      const code = normalizeRoomCode(project.roomCode);
+      if (!code || !output) return;
+      try {
+        const data = await roomRequest({
+          action: "output",
+          code,
+          label: `${finalSynthesizerName()} Meeting`,
+          content: output.slice(0, 5000)
+        });
+        applyRoomData(data);
+      } catch (error) {
+        toast(`Room output not saved: ${error.message}`);
+      }
+    }
+
+    async function roomRequest(payload) {
+      const res = await fetch("/api/rooms", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Room request failed.");
+      return data;
+    }
+
+    function applyRoomData(data) {
+      const project = activeProject();
+      project.room = data.room;
+      project.roomCode = data.room?.code || project.roomCode || "";
+      project.roomMessages = data.messages || [];
+      project.roomOutputs = data.outputs || [];
+      els.roomCode.value = project.roomCode;
+      if (data.room?.paper_title && !project.paperTitle) project.paperTitle = data.room.paper_title;
+      if (data.room?.paper_url && !project.paperUrl) project.paperUrl = data.room.paper_url;
+      persist();
+      renderRoom(project);
+    }
+
+    function roomDiscussionContext(project) {
+      if (!project.roomCode) return "";
+      const comments = (project.roomMessages || [])
+        .filter(item => item.kind !== "system")
+        .slice(-20)
+        .map(item => `${item.author}: ${item.content.slice(0, 260)}`)
+        .join("\n");
+      return comments ? `Shared journal club room ${project.roomCode} discussion:\n${comments}` : "";
+    }
+
+    function startRoomPolling() {
+      clearInterval(roomPollTimer);
+      roomPollTimer = null;
+      const project = activeProject();
+      if (workspaceMode !== "journal" || !project?.roomCode) return;
+      roomPollTimer = setInterval(() => syncRoom(false), 8000);
+    }
+
+    function roomAuthor() {
+      const value = els.roomName.value.trim().slice(0, 80);
+      state.roomName = value;
+      persist();
+      return value || "Member";
+    }
+
+    function normalizeRoomCode(value) {
+      return String(value || "").toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 16);
     }
 
     function clearPaper() {

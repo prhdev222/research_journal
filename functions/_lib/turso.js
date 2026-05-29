@@ -48,6 +48,31 @@ export async function ensureMemorySchema(db) {
       role TEXT NOT NULL,
       content TEXT NOT NULL,
       created_at TEXT NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS journal_rooms (
+      code TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      paper_title TEXT,
+      paper_url TEXT,
+      paper_summary TEXT,
+      created_by TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS room_messages (
+      id TEXT PRIMARY KEY,
+      room_code TEXT NOT NULL,
+      author TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS room_outputs (
+      id TEXT PRIMARY KEY,
+      room_code TEXT NOT NULL,
+      label TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at TEXT NOT NULL
     )`
   ];
 
@@ -203,4 +228,108 @@ export async function upsertProjectSummary(db, projectId, summary) {
         updated_at = excluded.updated_at`,
     args: [projectId, summary.slice(0, 1200), now]
   });
+}
+
+export async function createJournalRoom(db, room) {
+  if (!db) return null;
+  const now = new Date().toISOString();
+  await ensureMemorySchema(db);
+  await execute(db, {
+    sql: `INSERT INTO journal_rooms (code, title, paper_title, paper_url, paper_summary, created_by, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(code) DO UPDATE SET
+        title = excluded.title,
+        paper_title = excluded.paper_title,
+        paper_url = excluded.paper_url,
+        paper_summary = excluded.paper_summary,
+        updated_at = excluded.updated_at`,
+    args: [
+      room.code,
+      room.title || "Journal Club Room",
+      room.paperTitle || "",
+      room.paperUrl || "",
+      room.paperSummary || "",
+      room.createdBy || "Admin",
+      now,
+      now
+    ]
+  });
+  return getJournalRoom(db, room.code);
+}
+
+export async function getJournalRoom(db, code) {
+  if (!db || !code) return null;
+  await ensureMemorySchema(db);
+  const result = await execute(db, {
+    sql: "SELECT code, title, paper_title, paper_url, paper_summary, created_by, created_at, updated_at FROM journal_rooms WHERE code = ?",
+    args: [code]
+  });
+  return result.rows?.[0] || null;
+}
+
+export async function getRoomMessages(db, code) {
+  if (!db || !code) return [];
+  const result = await execute(db, {
+    sql: `SELECT id, author, kind, content, created_at
+      FROM room_messages
+      WHERE room_code = ?
+      ORDER BY created_at DESC
+      LIMIT 80`,
+    args: [code]
+  });
+  return (result.rows || []).reverse();
+}
+
+export async function addRoomMessage(db, code, message) {
+  if (!db || !code || !message?.content) return null;
+  await ensureMemorySchema(db);
+  const row = {
+    id: crypto.randomUUID(),
+    author: message.author || "Member",
+    kind: message.kind || "comment",
+    content: message.content.slice(0, 1200),
+    created_at: new Date().toISOString()
+  };
+  await execute(db, {
+    sql: "INSERT INTO room_messages (id, room_code, author, kind, content, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+    args: [row.id, code, row.author, row.kind, row.content, row.created_at]
+  });
+  await execute(db, {
+    sql: "UPDATE journal_rooms SET updated_at = ? WHERE code = ?",
+    args: [row.created_at, code]
+  });
+  return row;
+}
+
+export async function getRoomOutputs(db, code) {
+  if (!db || !code) return [];
+  const result = await execute(db, {
+    sql: `SELECT id, label, content, created_at
+      FROM room_outputs
+      WHERE room_code = ?
+      ORDER BY created_at DESC
+      LIMIT 12`,
+    args: [code]
+  });
+  return (result.rows || []).reverse();
+}
+
+export async function addRoomOutput(db, code, output) {
+  if (!db || !code || !output?.content) return null;
+  await ensureMemorySchema(db);
+  const row = {
+    id: crypto.randomUUID(),
+    label: output.label || "AI Meeting",
+    content: output.content.slice(0, 5000),
+    created_at: new Date().toISOString()
+  };
+  await execute(db, {
+    sql: "INSERT INTO room_outputs (id, room_code, label, content, created_at) VALUES (?, ?, ?, ?, ?)",
+    args: [row.id, code, row.label, row.content, row.created_at]
+  });
+  await execute(db, {
+    sql: "UPDATE journal_rooms SET updated_at = ? WHERE code = ?",
+    args: [row.created_at, code]
+  });
+  return row;
 }
