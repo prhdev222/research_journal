@@ -1,0 +1,1281 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Workspace — Research Assistant</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .chat-bubble-user { background:#1e40af; border-radius:12px 12px 2px 12px; }
+    .chat-bubble-agent { background:#1e293b; border-radius:12px 12px 12px 2px; }
+    .tool-badge { background:#7c3aed22; border:1px solid #7c3aed; border-radius:6px; }
+    .error-box { background:#7f1d1d44; border:1px solid #dc2626; border-radius:8px; }
+    a { color:#60a5fa; text-decoration:underline; }
+    pre { background:#0f172a; border-radius:8px; padding:12px; overflow-x:auto; font-size:12px; }
+    code { font-family: monospace; }
+    .agent-avatar { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
+    /* Agent card state animations */
+    @keyframes spin-slow { to { transform:rotate(360deg); } }
+    @keyframes pulse-ring { 0%,100%{opacity:.4;transform:scale(1)} 50%{opacity:1;transform:scale(1.15)} }
+    @keyframes queue-fade { 0%,100%{opacity:.5} 50%{opacity:1} }
+    .icon-running { display:inline-block; animation:spin-slow 1.2s linear infinite; }
+    .icon-queued  { display:inline-block; animation:queue-fade 1.6s ease-in-out infinite; }
+    .ring-running { position:absolute; inset:-3px; border-radius:50%; border:2px solid #3b82f6; animation:pulse-ring 1.4s ease-in-out infinite; pointer-events:none; }
+    .ring-queued  { position:absolute; inset:-2px; border-radius:50%; border:1px dashed #64748b; animation:queue-fade 1.6s ease-in-out infinite; pointer-events:none; }
+    .meeting-chip { background:#4c1d9522; border:1px solid #7c3aed; border-radius:6px; padding:4px 10px; cursor:pointer; font-size:12px; user-select:none; }
+    .meeting-chip.selected { background:#7c3aed44; border-color:#a78bfa; }
+    .typing-dot { display:inline-block; width:6px; height:6px; border-radius:50%; background:#60a5fa; animation:typing 1.2s infinite; }
+    .typing-dot:nth-child(2) { animation-delay:.2s; }
+    .typing-dot:nth-child(3) { animation-delay:.4s; }
+    @keyframes typing { 0%,80%,100%{opacity:.2;transform:scale(.8)} 40%{opacity:1;transform:scale(1)} }
+    .thinking-overlay { position:absolute; inset:0; background:#0f172acc; display:flex; align-items:center; justify-content:center; z-index:50; border-radius:8px; }
+    .thinking-panel { background:#1e293b; border:1px solid #334155; border-radius:12px; padding:24px 32px; display:flex; flex-direction:column; align-items:center; gap:12px; }
+    .thinking-mark { width:40px; height:40px; border:3px solid #334155; border-top-color:#60a5fa; border-radius:50%; animation:spin 1s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    /* Live monitor */
+    .mon-item { display:flex; gap:6px; align-items:flex-start; padding:5px 6px; border-radius:6px; border-left:2px solid transparent; }
+    .mon-item.start  { border-color:#3b82f6; background:#1e3a5f22; }
+    .mon-item.tool   { border-color:#7c3aed; background:#2e1065 22; }
+    .mon-item.result { border-color:#16a34a; background:#052e1622; }
+    .mon-item.done   { border-color:#16a34a55; }
+    .mon-item.error  { border-color:#dc2626; background:#2d0a0a22; }
+    .mon-item.info   { border-color:#334155; }
+    .mon-preview { color:#94a3b8; margin-top:2px; word-break:break-all; line-height:1.4; max-height:60px; overflow:hidden; }
+    @keyframes dot-pulse { 0%,100%{opacity:.4} 50%{opacity:1;transform:scale(1.3)} }
+    .dot-live { animation:dot-pulse .9s ease-in-out infinite; }
+    /* Full-screen pipeline loading overlay */
+    #pipelineOverlay { position:fixed; inset:0; background:#020617ee; backdrop-filter:blur(4px); z-index:100; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:24px; }
+    #pipelineOverlay.hidden { display:none; }
+    .pl-spinner { width:56px; height:56px; border:4px solid #1e3a5f; border-top-color:#3b82f6; border-radius:50%; animation:spin 1s linear infinite; }
+    .pl-agent-row { display:flex; align-items:center; gap:10px; padding:10px 20px; border-radius:12px; transition:all .3s; min-width:260px; }
+    .pl-agent-row.active  { background:#1e3a5f; border:1px solid #3b82f6; }
+    .pl-agent-row.done    { background:#052e16; border:1px solid #16a34a; opacity:.7; }
+    .pl-agent-row.queued  { background:#0f172a; border:1px solid #1e293b; opacity:.5; }
+    .pl-agent-row.error   { background:#2d0a0a; border:1px solid #dc2626; opacity:.8; }
+    @keyframes pl-appear { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+    .pl-agent-row { animation:pl-appear .25s ease; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
+
+<!-- Full-screen pipeline loading overlay -->
+<div id="pipelineOverlay" class="hidden">
+  <div class="flex flex-col items-center gap-6">
+    <!-- Spinner + current agent -->
+    <div class="flex flex-col items-center gap-3">
+      <div class="pl-spinner"></div>
+      <div id="plCurrentLabel" class="text-white text-lg font-semibold tracking-wide">กำลังเตรียม...</div>
+      <div id="plCurrentSub" class="text-slate-400 text-sm">Orra กำลังวางแผน</div>
+    </div>
+    <!-- Agent queue list -->
+    <div id="plAgentList" class="flex flex-col gap-2 w-80"></div>
+    <!-- Dismiss hint -->
+    <div class="text-slate-600 text-xs mt-2">ผลลัพธ์จะปรากฏในพื้นที่ด้านหลัง — กรุณารอสักครู่</div>
+  </div>
+</div>
+
+<!-- Pipeline status bar (hidden when idle) -->
+<div id="pipelineBar" class="hidden bg-slate-900 border-b border-blue-900 px-4 py-1.5 flex items-center gap-3 text-xs">
+  <span class="text-blue-400 font-semibold">PIPELINE</span>
+  <div id="pipelineBarSteps" class="flex items-center gap-1.5 flex-wrap flex-1"></div>
+  <span id="pipelineBarStatus" class="text-slate-500"></span>
+</div>
+
+<!-- Nav -->
+<nav class="bg-slate-900 border-b border-slate-800 px-4 py-3 flex justify-between items-center">
+  <div class="flex items-center gap-3">
+    <a href="/dashboard" class="text-slate-400 hover:text-white text-sm">← Back</a>
+    <span class="text-slate-600">|</span>
+    <span id="projectTitle" class="font-semibold text-white text-sm">Loading...</span>
+  </div>
+  <div class="flex gap-2">
+    <button id="outputsBtn" onclick="generateOutputs()"
+      class="px-4 py-1.5 bg-emerald-700 hover:bg-emerald-600 rounded-lg text-sm font-semibold">
+      📄 Generate Outputs
+    </button>
+    <button id="runBtn" onclick="runPipeline()"
+      class="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-semibold">
+      ▶ Run Pipeline
+    </button>
+  </div>
+</nav>
+
+<main class="flex-1 flex overflow-hidden" style="height:calc(100vh - 52px)">
+
+  <!-- LEFT: Agent cards (top) + Live Monitor (bottom) -->
+  <div class="w-72 bg-slate-900 border-r border-slate-800 flex flex-col" style="min-height:0">
+
+    <!-- Agent cards: takes all remaining space, scrollable -->
+    <div class="flex-1 overflow-y-auto p-3 min-h-0">
+      <div class="text-xs text-slate-500 font-semibold px-1 pb-1 sticky top-0 bg-slate-900 z-10">AGENTS</div>
+      <div id="agentCards"></div>
+    </div>
+
+    <!-- Meeting button: always visible, pinned above monitor -->
+    <div class="flex-shrink-0 px-3 py-2 border-t border-slate-800">
+      <button onclick="toggleMeetingPanel()"
+        class="w-full px-3 py-2 bg-violet-700 hover:bg-violet-600 rounded-lg text-sm font-semibold text-white">
+        🤝 Start Meeting
+      </button>
+    </div>
+
+    <!-- Live Monitor: fixed-height strip at bottom -->
+    <div class="flex-shrink-0 border-t border-slate-700 flex flex-col" style="height:200px">
+      <div class="flex items-center justify-between px-3 py-1.5 flex-shrink-0">
+        <div class="flex items-center gap-1.5">
+          <span id="monitorDot" class="w-2 h-2 rounded-full bg-slate-600"></span>
+          <span class="text-xs text-slate-400 font-semibold tracking-wide">LIVE MONITOR</span>
+        </div>
+        <button onclick="clearMonitor()" class="text-slate-600 hover:text-slate-400 text-xs">clear</button>
+      </div>
+      <div id="liveMonitor" class="flex-1 overflow-y-auto px-2 pb-2 space-y-1 text-xs min-h-0">
+        <div class="text-slate-700 px-1 italic">รอ pipeline เริ่ม...</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT: Output + Meeting panel + Chat -->
+  <div class="flex-1 flex flex-col overflow-hidden relative">
+
+    <!-- Output stream -->
+    <div id="outputPanel" class="flex-1 overflow-y-auto p-4 font-mono text-sm text-slate-300 whitespace-pre-wrap leading-relaxed relative">
+      <span class="text-slate-600">กด ▶ Run Pipeline เพื่อเริ่ม...</span>
+      <!-- Thinking overlay -->
+      <div id="thinkingOverlay" class="thinking-overlay hidden">
+        <div class="thinking-panel">
+          <div class="thinking-mark"></div>
+          <div id="thinkingLabel" class="text-slate-300 text-sm">กำลังทำงาน...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Meeting panel (hidden until opened) -->
+    <div id="meetingPanel" class="hidden border-t border-slate-800 flex flex-col bg-slate-900" style="height:52vh">
+      <div class="flex items-center justify-between px-4 py-2 border-b border-slate-800">
+        <span class="text-sm font-semibold text-violet-300">🤝 Agent Meeting</span>
+        <button onclick="toggleMeetingPanel()" class="text-slate-500 hover:text-white text-xs">✕ ปิด</button>
+      </div>
+      <!-- Meeting body -->
+      <div class="flex-1 overflow-y-auto p-3 space-y-3">
+        <!-- Question -->
+        <div class="flex gap-2">
+          <input id="meetingQuestion" type="text" placeholder="ถามคำถามให้ agent ทุกคนตอบ..."
+            class="flex-1 px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-violet-500"
+            onkeydown="if(event.key==='Enter')startMeeting()"/>
+          <button onclick="startMeeting()"
+            class="px-4 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg text-sm font-semibold whitespace-nowrap">
+            Ask All
+          </button>
+        </div>
+        <!-- Agent selector chips -->
+        <div id="meetingAgentChips" class="flex flex-wrap gap-1.5"></div>
+        <!-- Guest AI section -->
+        <div class="border-t border-slate-800 pt-2">
+          <div class="text-xs text-slate-500 font-semibold mb-1.5">Guest AI (optional)</div>
+          <div id="guestAgentChips" class="flex flex-wrap gap-1.5 mb-2"></div>
+          <div class="flex gap-2 items-center">
+            <select id="guestProvider" class="px-2 py-1 rounded bg-slate-800 border border-slate-700 text-sm text-white focus:outline-none focus:border-violet-500">
+              <option value="">-- Provider --</option>
+              <option value="openrouter">OpenRouter</option>
+              <option value="gemini">Gemini</option>
+              <option value="zai">ZAI</option>
+            </select>
+            <input id="guestModel" type="text" placeholder="model name"
+              class="flex-1 px-2 py-1 rounded bg-slate-800 border border-slate-700 text-sm text-white focus:outline-none focus:border-violet-500"/>
+            <input id="guestName" type="text" placeholder="nickname"
+              class="w-24 px-2 py-1 rounded bg-slate-800 border border-slate-700 text-sm text-white focus:outline-none focus:border-violet-500"/>
+            <button onclick="addGuestAgent()"
+              class="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-sm">+ Add</button>
+          </div>
+        </div>
+        <!-- Meeting transcript -->
+        <div id="meetingTranscript" class="space-y-2 mt-2"></div>
+      </div>
+    </div>
+
+    <!-- Chat panel (hidden until agent selected) -->
+    <div id="chatPanel" class="hidden border-t border-slate-800 flex flex-col" style="height:45vh">
+      <div class="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800">
+        <span class="text-sm font-semibold">💬 Chat กับ <span id="chatAgentName" class="text-blue-400"></span></span>
+        <button onclick="closeChat()" class="text-slate-500 hover:text-white text-xs">✕ ปิด</button>
+      </div>
+      <div id="chatMessages" class="flex-1 overflow-y-auto p-4 space-y-3"></div>
+      <div class="p-3 border-t border-slate-800 flex gap-2">
+        <input id="chatInput" type="text" placeholder="ถามต่อ หรือขอแก้ไข..."
+          class="flex-1 px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-blue-500"
+          onkeydown="if(event.key==='Enter')sendChat()"/>
+        <button onclick="sendChat()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-semibold">ส่ง</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+const projectId = window.location.pathname.split('/').pop();
+
+const AGENTS = [
+  {name:"orchestrator",     label:"🎯 Orchestrator",    model:"claude-opus-4-5"},
+  {name:"literature",       label:"📚 Literature",      model:"claude-sonnet-4-6", tools:["WebSearch","WebFetch"]},
+  {name:"research_question",label:"💡 Research Q",      model:"claude-sonnet-4-6"},
+  {name:"study_design",     label:"🔬 Study Design",    model:"claude-sonnet-4-6"},
+  {name:"irb_ethics",       label:"⚖️ IRB/Ethics",      model:"claude-sonnet-4-6"},
+  {name:"stats",            label:"📊 Stats",           model:"claude-sonnet-4-6"},
+  {name:"writing",          label:"✍️ Writing",         model:"claude-sonnet-4-6"},
+  {name:"summary",          label:"📋 Summary",         model:"claude-sonnet-4-6"},
+  {name:"output",           label:"📄 Output",          model:"python-docx"},
+];
+
+const agentState   = {};
+const agentSession = {};
+const agentContent = {};  // name → last output text
+let chatAgent     = null;
+let chatBusy      = false;
+let meetingBusy   = false;
+let agentProfiles = {};   // name → {nickname, avatar, accent, personality}
+let guestAgents   = [];   // [{id, name, provider, model}]
+
+AGENTS.forEach(a => agentState[a.name] = 'idle');
+
+// ── Agent Profiles (from API) ─────────────────────────────────────────────────
+async function loadAgentProfiles() {
+  try {
+    const res = await fetch('/api/agents');
+    if (!res.ok) return;
+    const data = await res.json();
+    data.forEach(p => { agentProfiles[p.name] = p; });
+    renderCards();
+  } catch {}
+}
+
+// ── Guest Agents ──────────────────────────────────────────────────────────────
+async function loadGuestAgents() {
+  try {
+    const res = await fetch('/api/guest-agents');
+    if (!res.ok) return;
+    guestAgents = await res.json();
+    renderGuestAgents();
+  } catch {}
+}
+
+async function addGuestAgent() {
+  const provider = document.getElementById('guestProvider').value;
+  const model    = document.getElementById('guestModel').value.trim();
+  const name     = document.getElementById('guestName').value.trim();
+  if (!provider || !model || !name) return;
+  try {
+    const res = await fetch('/api/guest-agents', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({name, provider, model}),
+    });
+    if (!res.ok) return;
+    const g = await res.json();
+    guestAgents.push(g);
+    renderGuestAgents();
+    renderMeetingAgents();
+    document.getElementById('guestProvider').value = '';
+    document.getElementById('guestModel').value   = '';
+    document.getElementById('guestName').value    = '';
+  } catch {}
+}
+
+async function deleteGuestAgent(id) {
+  try {
+    await fetch(`/api/guest-agents/${id}`, {method:'DELETE'});
+    guestAgents = guestAgents.filter(g => g.id !== id);
+    renderGuestAgents();
+  } catch {}
+}
+
+function renderGuestAgents() {
+  const el = document.getElementById('guestAgentChips');
+  if (!el) return;
+  el.innerHTML = guestAgents.map(g => `
+    <div class="meeting-chip selected flex items-center gap-1"
+         data-guest-id="${g.id}">
+      🤖 ${escapeHtml(g.name)}
+      <span class="text-slate-500 text-xs">(${g.provider})</span>
+      <button onclick="deleteGuestAgent('${g.id}')" class="ml-1 text-slate-500 hover:text-red-400 text-xs">✕</button>
+    </div>`).join('');
+}
+
+// ── Meeting Panel ─────────────────────────────────────────────────────────────
+function renderMeetingAgents() {
+  const el = document.getElementById('meetingAgentChips');
+  if (!el) return;
+  el.innerHTML = AGENTS.filter(a => a.name !== 'output').map(a => {
+    const p = agentProfiles[a.name];
+    const avatar = p?.avatar || a.label.split(' ')[0];
+    const nick   = p?.nickname || a.label.split(' ').slice(1).join(' ');
+    return `<div class="meeting-chip selected" data-agent="${a.name}">
+      ${avatar} ${escapeHtml(nick)}
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.meeting-chip[data-agent]').forEach(chip => {
+    chip.addEventListener('click', () => chip.classList.toggle('selected'));
+  });
+}
+
+function selectedMeetingAgents() {
+  return [...document.querySelectorAll('.meeting-chip[data-agent].selected')]
+    .map(c => c.dataset.agent);
+}
+
+function selectedGuestIds() {
+  return guestAgents.map(g => g.id);
+}
+
+function toggleMeetingPanel() {
+  const mp = document.getElementById('meetingPanel');
+  const cp = document.getElementById('chatPanel');
+  if (mp.classList.contains('hidden')) {
+    mp.classList.remove('hidden');
+    cp.classList.add('hidden');
+  } else {
+    mp.classList.add('hidden');
+  }
+}
+
+function appendMeetingTurn(agentName, content, isSystem) {
+  const el = document.getElementById('meetingTranscript');
+  const p  = agentProfiles[agentName];
+  const avatar = p?.avatar || '🤖';
+  const nick   = p?.nickname || agentName;
+  const accent = p?.accent || '#60a5fa';
+  const div = document.createElement('div');
+  div.className = 'flex gap-2 items-start';
+  if (isSystem) {
+    div.innerHTML = `<div class="text-xs text-slate-500 italic">${escapeHtml(content)}</div>`;
+  } else {
+    div.innerHTML = `
+      <div class="agent-avatar" style="background:${accent}22; border:1px solid ${accent}55">${avatar}</div>
+      <div class="flex-1">
+        <div class="text-xs font-semibold mb-0.5" style="color:${accent}">${escapeHtml(nick)}</div>
+        <div class="text-sm text-slate-300 whitespace-pre-wrap">${linkify(escapeHtml(content))}</div>
+      </div>`;
+  }
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+  return div;
+}
+
+function addTypingMsg(agentName) {
+  const el = document.getElementById('meetingTranscript');
+  const p  = agentProfiles[agentName];
+  const avatar = p?.avatar || '🤖';
+  const accent = p?.accent || '#60a5fa';
+  const div = document.createElement('div');
+  div.className = 'flex gap-2 items-center';
+  div.innerHTML = `
+    <div class="agent-avatar" style="background:${accent}22; border:1px solid ${accent}55">${avatar}</div>
+    <div class="flex gap-1">
+      <span class="typing-dot"></span>
+      <span class="typing-dot"></span>
+      <span class="typing-dot"></span>
+    </div>`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+  return div;
+}
+
+// ── Meeting render helpers ────────────────────────────────────────────────────
+function appendOrraOpen(opening, agenda) {
+  const el = document.getElementById('meetingTranscript');
+  const p  = agentProfiles['orchestrator'];
+  const avatar = p?.avatar || '🎯';
+  const accent = p?.accent || '#60a5fa';
+  const nick   = p?.nickname || 'Orra';
+
+  // Opening card
+  const div = document.createElement('div');
+  div.className = 'rounded-xl border p-3 mb-1';
+  div.style.cssText = `background:${accent}11; border-color:${accent}44;`;
+  div.innerHTML = `
+    <div class="flex items-center gap-2 mb-2">
+      <div class="agent-avatar" style="background:${accent}22; border:1px solid ${accent}66">${avatar}</div>
+      <span class="text-sm font-bold" style="color:${accent}">${escapeHtml(nick)} — Meeting Chair</span>
+    </div>
+    <div class="text-sm text-slate-200 mb-3">${linkify(escapeHtml(opening))}</div>
+    <div class="text-xs text-slate-500 font-semibold mb-1.5">AGENDA</div>
+    <div class="space-y-1">
+      ${agenda.map((item, i) => {
+        const ap = agentProfiles[item.agent];
+        const av = ap?.avatar || '🤖';
+        return `<div class="flex items-start gap-2 text-xs">
+          <span class="text-slate-500">${i+1}.</span>
+          <span>${av} <span class="font-medium text-slate-300">${escapeHtml(ap?.nickname || item.agent)}</span>
+          <span class="text-slate-500"> — ${escapeHtml(item.angle || '')}</span></span>
+        </div>`;
+      }).join('')}
+    </div>`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+function appendDiscussion(observation, question, addressedTo) {
+  const el = document.getElementById('meetingTranscript');
+  const p  = agentProfiles['orchestrator'];
+  const avatar = p?.avatar || '🎯';
+  const accent = p?.accent || '#60a5fa';
+  const nick   = p?.nickname || 'Orra';
+
+  const div = document.createElement('div');
+  div.className = 'rounded-xl border p-3 my-2';
+  div.style.cssText = `background:#1e293b; border-color:${accent}33; border-style:dashed;`;
+  const toStr = addressedTo.map(a => {
+    const ap = agentProfiles[a];
+    return `<span class="px-1.5 py-0.5 rounded text-xs font-medium" style="background:${ap?.accent || '#60a5fa'}22; color:${ap?.accent || '#60a5fa'}">${ap?.avatar || ''} ${escapeHtml(ap?.nickname || a)}</span>`;
+  }).join(' ');
+  div.innerHTML = `
+    <div class="flex items-center gap-2 mb-2">
+      <div class="agent-avatar" style="background:${accent}22; border:1px solid ${accent}66">${avatar}</div>
+      <span class="text-xs font-bold text-slate-400">${escapeHtml(nick)} · Discussion</span>
+    </div>
+    <div class="text-sm text-slate-300 mb-2">${linkify(escapeHtml(observation))}</div>
+    ${question ? `<div class="text-sm font-semibold text-white mb-1">❓ ${linkify(escapeHtml(question))}</div>
+    <div class="flex gap-1 flex-wrap">→ ${toStr}</div>` : ''}`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+function appendReplyTurn(agentName, content) {
+  const el = document.getElementById('meetingTranscript');
+  const p  = agentProfiles[agentName] || agentProfiles['summary'];
+  const avatar = p?.avatar || '🤖';
+  const accent = p?.accent || '#60a5fa';
+  const nick   = p?.nickname || agentName;
+
+  const div = document.createElement('div');
+  div.className = 'flex gap-2 items-start ml-8 border-l-2 pl-3 py-1';
+  div.style.cssText = `border-color:${accent}55;`;
+  div.innerHTML = `
+    <div class="agent-avatar" style="background:${accent}11; border:1px solid ${accent}44; font-size:13px">${avatar}</div>
+    <div class="flex-1">
+      <div class="text-xs font-semibold mb-0.5" style="color:${accent}">${escapeHtml(nick)} <span class="text-slate-600 font-normal">· reply</span></div>
+      <div class="text-sm text-slate-300 whitespace-pre-wrap">${linkify(escapeHtml(content))}</div>
+    </div>`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+function appendOrraClose(content) {
+  const el = document.getElementById('meetingTranscript');
+  const p  = agentProfiles['orchestrator'];
+  const avatar = p?.avatar || '🎯';
+  const accent = p?.accent || '#60a5fa';
+  const nick   = p?.nickname || 'Orra';
+
+  const div = document.createElement('div');
+  div.className = 'rounded-xl border p-4 mt-3';
+  div.style.cssText = `background:${accent}0d; border-color:${accent}66;`;
+  div.innerHTML = `
+    <div class="flex items-center gap-2 mb-3">
+      <div class="agent-avatar" style="background:${accent}22; border:1px solid ${accent}88">${avatar}</div>
+      <span class="text-sm font-bold" style="color:${accent}">${escapeHtml(nick)} — Meeting Summary</span>
+    </div>
+    <div class="text-sm text-slate-200 whitespace-pre-wrap leading-relaxed">${linkify(escapeHtml(content))}</div>`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+function addTeamTypingMsg(parentAgent, memberName) {
+  const el = document.getElementById('meetingTranscript');
+  const p  = agentProfiles[parentAgent] || {};
+  const accent = p.accent || '#60a5fa';
+  const div = document.createElement('div');
+  div.className = 'flex gap-2 items-center ml-10';
+  div.innerHTML = `
+    <div class="agent-avatar text-sm" style="background:${accent}11;border:1px solid ${accent}33;font-size:12px">🤖</div>
+    <span class="text-xs text-slate-500">${escapeHtml(memberName)}</span>
+    <div class="flex gap-1">
+      <span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>
+    </div>`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+  return div;
+}
+
+function appendTeamTurn(parentAgent, memberName, provider, content) {
+  const el = document.getElementById('meetingTranscript');
+  const p  = agentProfiles[parentAgent] || {};
+  const accent = p.accent || '#60a5fa';
+  const nick   = p.nickname || parentAgent;
+
+  const div = document.createElement('div');
+  div.className = 'flex gap-2 items-start ml-10 border-l-2 pl-3 py-1 mb-1';
+  div.style.cssText = `border-color:${accent}33;`;
+  div.innerHTML = `
+    <div class="agent-avatar text-sm" style="background:${accent}11;border:1px solid ${accent}33;font-size:11px">🤖</div>
+    <div class="flex-1">
+      <div class="text-xs font-semibold mb-0.5 text-slate-400">
+        ${escapeHtml(memberName)}
+        <span class="ml-1 px-1 py-0.5 rounded text-xs" style="background:${accent}22;color:${accent}">Team ${escapeHtml(nick)}</span>
+        ${provider ? `<span class="text-slate-600 font-normal ml-1">(${escapeHtml(provider)})</span>` : ''}
+      </div>
+      <div class="text-sm text-slate-300 whitespace-pre-wrap">${linkify(escapeHtml(content))}</div>
+    </div>`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+async function startMeeting() {
+  if (meetingBusy) return;
+  const question = document.getElementById('meetingQuestion').value.trim();
+  if (!question) return;
+  const agents   = selectedMeetingAgents();
+  const guestIds = selectedGuestIds();
+  if (agents.length === 0 && guestIds.length === 0) return;
+
+  meetingBusy = true;
+  document.getElementById('meetingTranscript').innerHTML = '';
+
+  // Show the question header
+  const qDiv = document.createElement('div');
+  qDiv.className = 'text-xs text-slate-500 italic border-b border-slate-800 pb-2 mb-2';
+  qDiv.textContent = `❓ ${question}`;
+  document.getElementById('meetingTranscript').appendChild(qDiv);
+
+  const typingDivs = {};
+
+  try {
+    const res = await fetch(`/api/projects/${projectId}/meetings`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({question, agent_names: agents, guest_ids: guestIds}),
+    });
+    if (!res.ok || !res.body) {
+      appendMeetingTurn('', `Error: HTTP ${res.status}`, true);
+      meetingBusy = false;
+      return;
+    }
+
+    const reader  = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, {stream:true});
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const raw = line.slice(6);
+        if (raw === '[DONE]') break;
+        try {
+          const ev = JSON.parse(raw);
+
+          if (ev.event === 'orra_thinking') {
+            typingDivs[ev.agent] = addTypingMsg(ev.agent);
+
+          } else if (ev.event === 'orra_open') {
+            if (typingDivs['orchestrator']) { typingDivs['orchestrator'].remove(); delete typingDivs['orchestrator']; }
+            appendOrraOpen(ev.opening || '', ev.agenda || []);
+
+          } else if (ev.event === 'turn_start') {
+            typingDivs[ev.agent] = addTypingMsg(ev.agent);
+
+          } else if (ev.event === 'turn_done') {
+            if (typingDivs[ev.agent]) { typingDivs[ev.agent].remove(); delete typingDivs[ev.agent]; }
+            // Show agent's assigned angle as small label above their response
+            appendMeetingTurnWithAngle(ev.agent, ev.angle || '', ev.content || '');
+
+          } else if (ev.event === 'discussion_prompt') {
+            if (typingDivs['orchestrator']) { typingDivs['orchestrator'].remove(); delete typingDivs['orchestrator']; }
+            appendDiscussion(ev.observation || '', ev.question || '', ev.addressed_to || []);
+
+          } else if (ev.event === 'reply_start') {
+            typingDivs[ev.agent + '_reply'] = addTypingMsg(ev.agent);
+
+          } else if (ev.event === 'reply_done') {
+            const k = ev.agent + '_reply';
+            if (typingDivs[k]) { typingDivs[k].remove(); delete typingDivs[k]; }
+            appendReplyTurn(ev.agent, ev.content || '');
+
+          } else if (ev.event === 'orra_close') {
+            if (typingDivs['orchestrator']) { typingDivs['orchestrator'].remove(); delete typingDivs['orchestrator']; }
+            appendOrraClose(ev.content || '');
+
+          } else if (ev.event === 'team_start') {
+            const k = `team:${ev.agent}:${ev.member_id}`;
+            typingDivs[k] = addTeamTypingMsg(ev.agent, ev.member_name || ev.member_id);
+
+          } else if (ev.event === 'team_done') {
+            const k = `team:${ev.agent}:${ev.member_id}`;
+            if (typingDivs[k]) { typingDivs[k].remove(); delete typingDivs[k]; }
+            appendTeamTurn(ev.agent, ev.member_name || ev.member_id, ev.member_provider || '', ev.content || '');
+
+          } else if (ev.event === 'team_error') {
+            const k = `team:${ev.agent}:${ev.member_id}`;
+            if (typingDivs[k]) { typingDivs[k].remove(); delete typingDivs[k]; }
+            appendMeetingTurn('', `⚠️ Team member error (${ev.member_name || ev.member_id}): ${ev.data || ''}`, true);
+
+          } else if (ev.event === 'error') {
+            appendMeetingTurn('', `⚠️ ${ev.data}`, true);
+          }
+        } catch {}
+      }
+    }
+  } catch (err) {
+    appendMeetingTurn('', `⚠️ ${err.message}`, true);
+  }
+  meetingBusy = false;
+}
+
+function appendMeetingTurnWithAngle(agentName, angle, content) {
+  const el = document.getElementById('meetingTranscript');
+  const p  = agentProfiles[agentName] || {};
+  const avatar = p.avatar || '🤖';
+  const accent = p.accent || '#60a5fa';
+  const nick   = p.nickname || agentName;
+
+  const div = document.createElement('div');
+  div.className = 'flex gap-2 items-start';
+  div.innerHTML = `
+    <div class="agent-avatar" style="background:${accent}22; border:1px solid ${accent}55">${avatar}</div>
+    <div class="flex-1">
+      ${angle ? `<div class="text-xs text-slate-500 mb-0.5 italic">${escapeHtml(angle)}</div>` : ''}
+      <div class="text-xs font-semibold mb-0.5" style="color:${accent}">${escapeHtml(nick)}</div>
+      <div class="text-sm text-slate-300 whitespace-pre-wrap">${linkify(escapeHtml(content))}</div>
+    </div>`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+// ── Live Monitor ─────────────────────────────────────────────────────────────
+const monitorChunkBuf = {};   // agent → accumulated text so far
+
+function monitorDotActive(on) {
+  const d = document.getElementById('monitorDot');
+  if (on) { d.classList.add('dot-live'); d.style.background = '#3b82f6'; }
+  else     { d.classList.remove('dot-live'); d.style.background = '#334155'; }
+}
+
+function clearMonitor() {
+  document.getElementById('liveMonitor').innerHTML =
+    '<div class="text-slate-700 px-1 italic">cleared</div>';
+  Object.keys(monitorChunkBuf).forEach(k => delete monitorChunkBuf[k]);
+}
+
+function monAdd(type, agentName, title, detail) {
+  const el = document.getElementById('liveMonitor');
+  // Remove placeholder
+  const ph = el.querySelector('.italic');
+  if (ph) ph.remove();
+
+  const p = agentProfiles[agentName] || {};
+  const av = p.avatar || '•';
+  const accent = p.accent || '#60a5fa';
+  const nick = p.nickname || agentName;
+
+  const div = document.createElement('div');
+  div.className = `mon-item ${type}`;
+  div.innerHTML = `
+    <span class="flex-shrink-0 text-sm leading-none mt-0.5">${av}</span>
+    <div class="flex-1 min-w-0">
+      <span class="font-semibold" style="color:${accent}">${escapeHtml(nick)}</span>
+      <span class="text-slate-400 ml-1">${escapeHtml(title)}</span>
+      ${detail ? `<div class="mon-preview">${escapeHtml(detail)}</div>` : ''}
+    </div>`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+  return div;
+}
+
+function monUpdatePreview(agentName, text) {
+  // Live-update the last result item for this agent
+  const el = document.getElementById('liveMonitor');
+  const id = `mon-live-${agentName}`;
+  let row = document.getElementById(id);
+  const p = agentProfiles[agentName] || {};
+  const av = p.avatar || '•';
+  const accent = p.accent || '#60a5fa';
+  const nick = p.nickname || agentName;
+
+  // Show last 180 chars, strip markdown markers for readability
+  const preview = text.replace(/#{1,3} /g, '').replace(/\*\*/g, '').slice(-180);
+
+  if (!row) {
+    row = document.createElement('div');
+    row.id = id;
+    row.className = 'mon-item result';
+    el.appendChild(row);
+  }
+  row.innerHTML = `
+    <span class="flex-shrink-0 text-sm leading-none mt-0.5">${av}</span>
+    <div class="flex-1 min-w-0">
+      <span class="font-semibold" style="color:${accent}">${escapeHtml(nick)}</span>
+      <span class="text-slate-500 ml-1">กำลังเขียน...</span>
+      <div class="mon-preview">${escapeHtml(preview)}</div>
+    </div>`;
+  el.scrollTop = el.scrollHeight;
+}
+
+function monFinalizePreview(agentName, fullText) {
+  const id = `mon-live-${agentName}`;
+  const row = document.getElementById(id);
+  if (!row) return;
+  const p = agentProfiles[agentName] || {};
+  const av = p.avatar || '•';
+  const accent = p.accent || '#60a5fa';
+  const nick = p.nickname || agentName;
+  const preview = fullText.replace(/#{1,3} /g, '').replace(/\*\*/g, '').slice(0, 200);
+  row.className = 'mon-item done';
+  row.innerHTML = `
+    <span class="flex-shrink-0 text-sm leading-none mt-0.5">${av}</span>
+    <div class="flex-1 min-w-0">
+      <span class="font-semibold" style="color:${accent}">${escapeHtml(nick)}</span>
+      <span class="text-green-500 ml-1">✓ เสร็จ</span>
+      <div class="mon-preview">${escapeHtml(preview)}${fullText.length > 200 ? '…' : ''}</div>
+    </div>`;
+}
+
+// ── Agent Cards ──────────────────────────────────────────────────────────────
+function renderCards() {
+  document.getElementById('agentCards').innerHTML = AGENTS.map(a => {
+    const s      = agentState[a.name];   // idle | queued | running | done | error
+    const p      = agentProfiles[a.name];
+    const avatar = p?.avatar || a.label.split(' ')[0];
+    const nick   = p?.nickname || a.label.split(' ').slice(1).join(' ');
+    const accent = p?.accent || '#60a5fa';
+    const hasSes = agentSession[a.name];
+
+    // Border / bg by state
+    const styles = {
+      idle:    { border:'border-slate-700', bg:'bg-slate-800',   opacity:'' },
+      queued:  { border:'border-slate-600', bg:'bg-slate-850',   opacity:'opacity-80' },
+      running: { border:'border-blue-500',  bg:'bg-blue-950',    opacity:'' },
+      done:    { border:'border-green-600', bg:'bg-green-950',   opacity:'' },
+      error:   { border:'border-red-700',   bg:'bg-red-950',     opacity:'' },
+    }[s] || { border:'border-slate-700', bg:'bg-slate-800', opacity:'' };
+
+    // Status icon
+    const iconHtml = s === 'running'
+      ? `<span class="icon-running text-blue-400 text-sm">⟳</span>`
+      : s === 'queued'
+      ? `<span class="icon-queued text-slate-500 text-xs">⏳</span>`
+      : s === 'done'
+      ? `<span class="text-green-400 text-sm">✓</span>`
+      : s === 'error'
+      ? `<span class="text-red-400 text-sm">✗</span>`
+      : `<span class="text-slate-600 text-xs">○</span>`;
+
+    // Avatar ring
+    const ringHtml = s === 'running'
+      ? `<div class="ring-running"></div>`
+      : s === 'queued'
+      ? `<div class="ring-queued"></div>`
+      : '';
+
+    // Sub-label
+    const subLabel = s === 'running' ? `<div class="text-xs text-blue-400 mt-0.5 pl-1 animate-pulse">กำลังคิด...</div>`
+      : s === 'queued'  ? `<div class="text-xs text-slate-500 mt-0.5 pl-1">รอคิว</div>`
+      : hasSes          ? `<div class="text-xs text-blue-400 mt-0.5 pl-1">💬 คลิกเพื่อ chat</div>`
+      : '';
+
+    return `
+    <div class="rounded-lg p-2.5 border ${styles.border} ${styles.bg} ${styles.opacity} cursor-pointer hover:opacity-90 transition mb-1.5"
+         onclick="openChat('${a.name}')">
+      <div class="flex items-center gap-2">
+        <div class="relative">
+          <div class="agent-avatar text-base" style="background:${accent}22; border:1px solid ${accent}44">${avatar}</div>
+          ${ringHtml}
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-medium truncate" style="color:${accent}">${nick}</div>
+          <div class="text-xs text-slate-500">${a.model}</div>
+        </div>
+        ${iconHtml}
+      </div>
+      ${a.tools ? '<div class="text-xs text-purple-400 mt-0.5 pl-1">🌐 web</div>' : ''}
+      ${subLabel}
+    </div>`;
+  }).join('');
+}
+
+// ── Pipeline loading overlay ──────────────────────────────────────────────────
+function showPipelineOverlay(sequence) {
+  const ov = document.getElementById('pipelineOverlay');
+  const list = document.getElementById('plAgentList');
+  ov.classList.remove('hidden');
+  // Build agent rows
+  list.innerHTML = sequence.map(name => {
+    const p = agentProfiles[name];
+    const av = p?.avatar || '🤖';
+    const nick = p?.nickname || name;
+    return `<div id="pl-row-${name}" class="pl-agent-row queued">
+      <div class="agent-avatar text-base" style="background:#1e293b;border:1px solid #334155">${av}</div>
+      <div class="flex-1">
+        <div class="text-sm font-medium text-slate-300">${nick}</div>
+        <div id="pl-sub-${name}" class="text-xs text-slate-600">รอคิว</div>
+      </div>
+      <div id="pl-icon-${name}" class="text-slate-600 text-sm">○</div>
+    </div>`;
+  }).join('');
+}
+
+function updateOverlayAgent(name, state, subText) {
+  const row = document.getElementById(`pl-row-${name}`);
+  const sub = document.getElementById(`pl-sub-${name}`);
+  const icon = document.getElementById(`pl-icon-${name}`);
+  if (!row) return;
+  row.className = 'pl-agent-row ' + state;
+  if (sub && subText) sub.textContent = subText;
+  if (icon) {
+    icon.innerHTML = state === 'active'
+      ? `<span class="icon-running text-blue-400">⟳</span>`
+      : state === 'done'  ? `<span class="text-green-400">✓</span>`
+      : state === 'error' ? `<span class="text-red-400">✗</span>`
+      : `<span class="text-slate-600 icon-queued">○</span>`;
+  }
+}
+
+function setOverlayStatus(label, sub) {
+  document.getElementById('plCurrentLabel').textContent = label;
+  document.getElementById('plCurrentSub').textContent = sub || '';
+}
+
+function hidePipelineOverlay() {
+  document.getElementById('pipelineOverlay').classList.add('hidden');
+}
+
+// ── Pipeline status bar ───────────────────────────────────────────────────────
+function updatePipelineBar(sequence, currentAgent) {
+  const bar = document.getElementById('pipelineBar');
+  const steps = document.getElementById('pipelineBarSteps');
+  const status = document.getElementById('pipelineBarStatus');
+
+  if (!sequence || sequence.length === 0) {
+    bar.classList.add('hidden');
+    return;
+  }
+  bar.classList.remove('hidden');
+
+  steps.innerHTML = sequence.map((name, i) => {
+    const p = agentProfiles[name];
+    const av = p?.avatar || '🤖';
+    const nick = p?.nickname || name;
+    const s = agentState[name];
+    const isActive = name === currentAgent;
+    const isDone = s === 'done';
+    const isErr = s === 'error';
+
+    const color = isActive ? 'text-blue-300 font-bold'
+      : isDone  ? 'text-green-500'
+      : isErr   ? 'text-red-400'
+      : 'text-slate-500';
+    const dot = isActive ? `<span class="icon-running text-blue-400">⟳</span> `
+      : isDone  ? `<span class="text-green-500">✓</span> `
+      : isErr   ? `<span class="text-red-400">✗</span> `
+      : `<span class="icon-queued text-slate-600">·</span> `;
+
+    return (i > 0 ? '<span class="text-slate-700 mx-0.5">→</span>' : '') +
+      `<span class="${color}">${dot}${av} ${nick}</span>`;
+  }).join('');
+
+  if (currentAgent) {
+    const p = agentProfiles[currentAgent];
+    status.textContent = `${p?.avatar || ''} ${p?.nickname || currentAgent} กำลังทำงาน`;
+  } else {
+    status.textContent = '';
+  }
+}
+
+// ── Output Panel ─────────────────────────────────────────────────────────────
+function setThinking(label) {
+  const ov = document.getElementById('thinkingOverlay');
+  if (label) {
+    document.getElementById('thinkingLabel').textContent = label;
+    ov.classList.remove('hidden');
+  } else {
+    ov.classList.add('hidden');
+  }
+}
+
+function clearOutputPlaceholders() {
+  const el = document.getElementById('outputPanel');
+  const ph = el.querySelector('.text-slate-600');
+  if (ph) ph.remove();
+}
+
+function appendOutputLinks(files) {
+  const el = document.getElementById('outputPanel');
+  const div = document.createElement('div');
+  div.className = 'my-4 p-3 bg-emerald-950 border border-emerald-700 rounded-lg text-sm';
+  // files is now an array of filename strings
+  div.innerHTML = `<div class="font-semibold text-emerald-300 mb-2">📁 Output Files</div>` +
+    (files || []).map(f => {
+      const name = typeof f === 'string' ? f : (f.name || String(f));
+      return `<div><a href="/api/projects/${projectId}/files/${encodeURIComponent(name)}" target="_blank" class="text-emerald-400">⬇️ ${escapeHtml(name)}</a></div>`;
+    }).join('');
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+async function generateOutputs() {
+  const btn = document.getElementById('outputsBtn');
+  btn.disabled = true;
+  btn.textContent = '⟳ Generating...';
+
+  // Build content from what agents have already produced in this session
+  const body = {
+    literature:        agentContent['literature']        || '',
+    research_question: agentContent['research_question'] || '',
+    study_design:      agentContent['study_design']      || '',
+    stats:             agentContent['stats']             || '',
+    summary:           agentContent['summary']           || '',
+    writing:           agentContent['writing']           || '',
+  };
+
+  const hasContent = Object.values(body).some(v => v.length > 0);
+  if (!hasContent) {
+    appendError('output', 'ยังไม่มี output จาก pipeline — กรุณา Run Pipeline ก่อน');
+    btn.disabled = false;
+    btn.textContent = '📄 Generate Outputs';
+    return;
+  }
+
+  // Show a non-blocking status banner instead of full overlay
+  const banner = document.createElement('div');
+  banner.id = 'outputsBanner';
+  banner.className = 'fixed bottom-4 right-4 bg-slate-800 border border-emerald-700 rounded-lg px-4 py-3 text-sm text-emerald-300 z-50 flex items-center gap-2';
+  banner.innerHTML = `<span class="icon-running">⟳</span> กำลังสร้างไฟล์...`;
+  document.body.appendChild(banner);
+
+  try {
+    const res = await fetch(`/api/projects/${projectId}/outputs`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => `HTTP ${res.status}`);
+      throw new Error(`${res.status}: ${detail}`);
+    }
+    const data = await res.json();
+    clearOutputPlaceholders();
+    appendOutputLinks(data.files || []);
+  } catch (err) {
+    appendError('output', err.message);
+  } finally {
+    document.getElementById('outputsBanner')?.remove();
+    btn.disabled = false;
+    btn.textContent = '📄 Generate Outputs';
+  }
+}
+
+function appendOutput(agent, text) {
+  const el = document.getElementById('outputPanel');
+  clearOutputPlaceholders();
+  const linked = linkify(text);
+  const span = document.createElement('span');
+  span.innerHTML = linked;
+  el.appendChild(span);
+  el.scrollTop = el.scrollHeight;
+}
+
+function appendHeader(agent, label) {
+  const el = document.getElementById('outputPanel');
+  const div = document.createElement('div');
+  div.className = 'text-blue-400 font-bold mt-4 mb-1';
+  div.textContent = `\n─── ${label} ─────────────────────────────`;
+  el.appendChild(div);
+}
+
+function appendToolUse(agent, tool, input) {
+  const el = document.getElementById('outputPanel');
+  const div = document.createElement('div');
+  div.className = 'tool-badge text-purple-300 text-xs px-2 py-1 my-1 inline-block';
+  const query = input.query || input.url || JSON.stringify(input).slice(0,60);
+  div.textContent = `🔍 ${tool}: ${query}`;
+  el.appendChild(div);
+  el.appendChild(document.createElement('br'));
+  el.scrollTop = el.scrollHeight;
+}
+
+function appendError(agent, text) {
+  const el = document.getElementById('outputPanel');
+  const div = document.createElement('div');
+  div.className = 'error-box text-red-200 text-sm px-3 py-2 my-3 whitespace-pre-wrap';
+  div.textContent = `${agent || 'system'} error: ${text}`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+// ── Pipeline ─────────────────────────────────────────────────────────────────
+let pipelineSequence = [];
+let pipelineCurrentAgent = null;
+
+function runPipeline() {
+  const btn = document.getElementById('runBtn');
+  btn.disabled = true; btn.textContent = '⟳ Running...';
+  document.getElementById('outputPanel').innerHTML = '';
+  pipelineSequence = [];
+  pipelineCurrentAgent = null;
+  AGENTS.forEach(a => { agentState[a.name] = 'idle'; delete agentSession[a.name]; delete agentContent[a.name]; });
+  renderCards();
+  updatePipelineBar([], null);
+  clearMonitor();
+  monitorDotActive(true);
+  monAdd('info', 'orchestrator', '▶ Pipeline เริ่มต้น', null);
+  monAdd('info', 'orchestrator', '🧠 Orra กำลังวางแผน...', null);
+
+  const evtSource = new EventSource(`/api/projects/${projectId}/run`);
+  evtSource.onmessage = (e) => {
+    if (e.data === '[DONE]') {
+      evtSource.close();
+      btn.disabled = false; btn.textContent = '▶ Run Again';
+      pipelineCurrentAgent = null;
+      updatePipelineBar(pipelineSequence, null);
+      renderCards();
+      document.getElementById('pipelineBar').classList.add('hidden');
+      hidePipelineOverlay();
+      monitorDotActive(false);
+      monAdd('info', 'orchestrator', '✓ Pipeline เสร็จสมบูรณ์', null);
+      return;
+    }
+    let ev;
+    try { ev = JSON.parse(e.data); } catch { return; }
+
+    if (ev.event === 'plan') {
+      const seq = (ev.data?.agent_sequence || []).map(s =>
+        typeof s === 'string' ? s : (s?.agent || s?.name || '?')
+      );
+      const seqStr = seq.join(' → ');
+      setOverlayStatus('แผนพร้อมแล้ว', seqStr || 'กำลังเตรียม agent...');
+      appendHeader('orchestrator', '🎯 Orra — Research Plan');
+      const planText = ev.data?.topic_summary
+        ? `Research type: ${ev.data.research_type || ''}\n${ev.data.topic_summary || ''}\nSequence: ${seqStr}`
+        : JSON.stringify(ev.data, null, 2);
+      appendOutput('orchestrator', planText);
+      agentState['orchestrator'] = 'done';
+      monAdd('info', 'orchestrator', `วางแผนแล้ว: ${seqStr}`, null);
+
+    } else if (ev.event === 'queue') {
+      const seq = ev.sequence || [];
+      if (pipelineSequence.length === 0) {
+        pipelineSequence = seq;
+      }
+      seq.forEach(name => {
+        if (agentState[name] === 'idle') agentState[name] = 'queued';
+      });
+      updatePipelineBar(pipelineSequence, pipelineCurrentAgent);
+      // Hide the blocking overlay once queue is known — live monitor takes over
+      hidePipelineOverlay();
+
+    } else if (ev.event === 'agent_start') {
+      const p = agentProfiles[ev.agent];
+      const a = AGENTS.find(x => x.name === ev.agent);
+      const label = p ? `${p.avatar} ${p.nickname}` : (a?.label || ev.agent.toUpperCase());
+      appendHeader(ev.agent, label);
+      agentState[ev.agent] = 'running';
+      pipelineCurrentAgent = ev.agent;
+      monitorChunkBuf[ev.agent] = '';
+      updatePipelineBar(pipelineSequence, ev.agent);
+      monAdd('start', ev.agent, 'เริ่มทำงาน', null);
+
+    } else if (ev.event === 'chunk') {
+      appendOutput(ev.agent, ev.data);
+      monitorChunkBuf[ev.agent] = (monitorChunkBuf[ev.agent] || '') + ev.data;
+      // Update live preview every ~80 chars
+      if (monitorChunkBuf[ev.agent].length % 80 < ev.data.length) {
+        monUpdatePreview(ev.agent, monitorChunkBuf[ev.agent]);
+      }
+      agentContent[ev.agent] = (agentContent[ev.agent] || '') + ev.data;
+
+    } else if (ev.event === 'tool_use') {
+      appendToolUse(ev.agent, ev.tool, ev.input || {});
+      if (ev.tool === 'WebSearch') {
+        const q = ev.input?.query || '';
+        monAdd('tool', ev.agent, `🔍 ค้นหา`, q);
+        updateOverlayAgent(ev.agent, 'active', `🔍 ${q}`.slice(0, 48));
+      } else if (ev.tool === 'WebFetch') {
+        const url = (ev.input?.url || '').replace(/^https?:\/\//, '').slice(0, 55);
+        monAdd('tool', ev.agent, `🌐 ดึงข้อมูล`, url);
+        updateOverlayAgent(ev.agent, 'active', `🌐 ${url}`);
+      } else {
+        monAdd('tool', ev.agent, `🔧 ${ev.tool}`, null);
+      }
+
+    } else if (ev.event === 'agent_done') {
+      agentState[ev.agent] = ev.had_error ? 'error' : 'done';
+      if (ev.session_id) agentSession[ev.agent] = ev.session_id;
+      pipelineCurrentAgent = null;
+      updatePipelineBar(pipelineSequence, null);
+      updateOverlayAgent(ev.agent, ev.had_error ? 'error' : 'done', ev.had_error ? 'มีข้อผิดพลาด' : 'เสร็จแล้ว ✓');
+      setOverlayStatus('กำลังดำเนินการต่อ...', '');
+      monFinalizePreview(ev.agent, monitorChunkBuf[ev.agent] || '');
+
+    } else if (ev.event === 'agent_error') {
+      appendError(ev.agent, ev.data || 'Agent error');
+      agentState[ev.agent] = 'error';
+      updateOverlayAgent(ev.agent, 'error', 'error — ข้ามไปตัวถัดไป');
+      monAdd('error', ev.agent, '✗ error', (ev.data || '').slice(0, 80));
+
+    } else if (ev.event === 'error') {
+      appendError(ev.agent || 'pipeline', ev.data || 'Unknown error');
+      monAdd('error', ev.agent || 'orchestrator', '✗ pipeline error', (ev.data || '').slice(0, 80));
+      AGENTS.forEach(a => { if (agentState[a.name] === 'queued' || agentState[a.name] === 'running') agentState[a.name] = 'idle'; });
+      evtSource.close();
+      btn.disabled = false; btn.textContent = '▶ Run Pipeline';
+      pipelineCurrentAgent = null;
+      updatePipelineBar([], null);
+      hidePipelineOverlay();
+      monitorDotActive(false);
+    }
+
+    renderCards();
+  };
+  evtSource.onerror = () => {
+    evtSource.close();
+    btn.disabled = false; btn.textContent = '▶ Run Pipeline';
+    AGENTS.forEach(a => { if (agentState[a.name] === 'queued' || agentState[a.name] === 'running') agentState[a.name] = 'idle'; });
+    pipelineCurrentAgent = null;
+    renderCards();
+    updatePipelineBar([], null);
+    hidePipelineOverlay();
+    monitorDotActive(false);
+    monAdd('error', 'orchestrator', '⚠ SSE connection closed', null);
+  };
+}
+
+// ── Chat per Agent ────────────────────────────────────────────────────────────
+function openChat(agentName) {
+  chatAgent = agentName;
+  const a = AGENTS.find(x => x.name === agentName);
+  const p = agentProfiles[agentName];
+  const label = p ? `${p.avatar} ${p.nickname}` : (a?.label || agentName);
+
+  document.getElementById('chatAgentName').textContent = label;
+  document.getElementById('meetingPanel').classList.add('hidden');
+  document.getElementById('chatPanel').classList.remove('hidden');
+  document.getElementById('chatMessages').innerHTML = '';
+
+  if (p?.personality) {
+    addChatMsg('system', `${p.personality}`);
+  }
+  if (agentSession[agentName]) {
+    addChatMsg('system', `💬 ต่อจาก session ที่รันไว้ — ถามได้เลย`);
+  } else {
+    addChatMsg('system', `💬 Chat ใหม่กับ ${label}`);
+  }
+  document.getElementById('chatInput').focus();
+}
+
+function closeChat() {
+  document.getElementById('chatPanel').classList.add('hidden');
+  chatAgent = null;
+}
+
+function addChatMsg(role, text) {
+  const el = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = `p-3 text-sm ${role === 'user' ? 'chat-bubble-user ml-8' : role === 'system' ? 'text-slate-500 text-xs' : 'chat-bubble-agent mr-8'}`;
+  div.innerHTML = linkify(escapeHtml(text));
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+  return div;
+}
+
+async function sendChat() {
+  if (chatBusy) return;
+  const input = document.getElementById('chatInput');
+  const msg = input.value.trim();
+  if (!msg || !chatAgent) return;
+  input.value = '';
+  chatBusy = true;
+
+  addChatMsg('user', msg);
+  const agentDiv = addChatMsg('agent', '');
+  let agentText = '';
+  let newSessionId = agentSession[chatAgent] || null;
+
+  try {
+    const res = await fetch('/api/agents/chat', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        message: msg,
+        agent_name: chatAgent,
+        session_id: newSessionId,
+        project_id: projectId,
+      }),
+    });
+
+    if (!res.ok || !res.body) {
+      agentDiv.textContent = `Chat error: HTTP ${res.status}`;
+      chatBusy = false;
+      return;
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, {stream:true});
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const raw = line.slice(6);
+        if (raw === '[DONE]') break;
+        try {
+          const ev = JSON.parse(raw);
+          if (ev.type === 'chunk') {
+            agentText += ev.data;
+            agentDiv.innerHTML = linkify(escapeHtml(agentText));
+            document.getElementById('chatMessages').scrollTop = 999999;
+          } else if (ev.type === 'tool_use') {
+            const toolSpan = document.createElement('div');
+            toolSpan.className = 'tool-badge text-purple-300 text-xs px-2 py-1 my-1 inline-block';
+            toolSpan.textContent = `🔍 ${ev.tool}: ${ev.input?.query || ev.input?.url || ''}`;
+            agentDiv.appendChild(toolSpan);
+          } else if (ev.type === 'done') {
+            newSessionId = ev.session_id;
+            agentSession[chatAgent] = newSessionId;
+            renderCards();
+          } else if (ev.type === 'error') {
+            agentDiv.classList.add('error-box', 'text-red-200');
+            agentDiv.textContent = ev.data || 'Unknown agent error';
+          }
+        } catch {}
+      }
+    }
+  } catch (err) {
+    agentDiv.textContent = `Error: ${err.message}`;
+  }
+  chatBusy = false;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function escapeHtml(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function linkify(text) {
+  return text.replace(/(https?:\/\/[^\s<)"]+)/g, '<a href="$1" target="_blank">$1</a>');
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+async function loadProject() {
+  try {
+    const res = await fetch(`/api/projects/${projectId}`);
+    if (res.ok) {
+      const p = await res.json();
+      document.getElementById('projectTitle').textContent = p.title || projectId;
+    }
+  } catch {}
+}
+
+loadProject();
+loadAgentProfiles();
+loadGuestAgents();
+renderCards();
+renderMeetingAgents();
+</script>
+</body>
+</html>

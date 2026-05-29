@@ -1,0 +1,16 @@
+{
+  "name": "research-assistant-cloudflare",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Mobile-first Cloudflare Pages version of the Research Assistant.",
+  "scripts": {
+    "dev": "wrangler pages dev public",
+    "deploy": "wrangler pages deploy public --project-name research-assistant-cloudflare"
+  },
+  "devDependencies": {
+    "wrangler": "^4.18.0"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.17.3"
+  }
+}

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — Research Assistant</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+  <nav class="bg-slate-900 border-b border-slate-800 px-6 py-4 flex justify-between items-center">
+    <div class="flex items-center gap-2">
+      <span class="text-xl">🔬</span>
+      <span class="font-bold text-white">Research Assistant</span>
+    </div>
+    <button onclick="logout()" class="text-slate-400 hover:text-white text-sm">ออกจากระบบ</button>
+  </nav>
+
+  <main class="max-w-4xl mx-auto px-6 py-8">
+    <div class="flex justify-between items-center mb-6">
+      <h1 class="text-xl font-bold">Projects</h1>
+      <button onclick="showNewProject()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-semibold">
+        + New Project
+      </button>
+    </div>
+
+    <!-- New Project Modal -->
+    <div id="newProjectModal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+      <div class="bg-slate-900 rounded-xl p-6 w-full max-w-md">
+        <h2 class="text-lg font-bold mb-4">New Research Project</h2>
+        <form id="newProjectForm" class="space-y-3">
+          <input id="projTitle" type="text" placeholder="Project title" class="w-full px-3 py-2 rounded bg-slate-800 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"/>
+          <textarea id="projTopic" rows="3" placeholder="Research topic / keywords" class="w-full px-3 py-2 rounded bg-slate-800 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"></textarea>
+          <div>
+            <label class="text-xs text-slate-400 block mb-1">Target Journal (สำหรับ Writing Agent)</label>
+            <select id="projJournal" class="w-full px-3 py-2 rounded bg-slate-800 border border-slate-700 text-white focus:outline-none focus:border-blue-500 text-sm">
+              <option value="">— generic format —</option>
+              <option value="blood">Blood (ASH) — ~4,000 words</option>
+              <option value="bjh">British Journal of Haematology (BJH) — ~3,500 words</option>
+              <option value="haematologica">Haematologica (EHA) — ~4,500 words</option>
+              <option value="annals">Annals of Hematology (Springer) — ~4,000 words</option>
+            </select>
+          </div>
+          <div class="flex gap-2 pt-2">
+            <button type="submit" class="flex-1 py-2 bg-blue-600 hover:bg-blue-500 rounded font-semibold">สร้าง</button>
+            <button type="button" onclick="hideNewProject()" class="flex-1 py-2 bg-slate-700 hover:bg-slate-600 rounded">ยกเลิก</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Project List -->
+    <div id="projectList" class="space-y-3">
+      <p class="text-slate-500 text-sm">Loading...</p>
+    </div>
+  </main>
+
+  <script>
+    async function loadProjects() {
+      const res = await fetch('/api/projects');
+      if (!res.ok) { window.location.href = '/'; return; }
+      const projects = await res.json();
+      const el = document.getElementById('projectList');
+      if (!projects.length) {
+        el.innerHTML = '<p class="text-slate-500 text-sm">ยังไม่มี project — กด "+ New Project" เพื่อเริ่ม</p>';
+        return;
+      }
+      el.innerHTML = projects.map(p => `
+        <div class="bg-slate-900 rounded-xl p-4 border border-slate-800 flex justify-between items-center hover:border-slate-600 cursor-pointer"
+             onclick="window.location.href='/workspace/${p.id}'">
+          <div>
+            <div class="font-semibold text-white">${p.title}</div>
+            <div class="text-sm text-slate-400 mt-0.5">${p.topic}</div>
+            <div class="text-xs text-slate-600 mt-1">${p.created_at}</div>
+          </div>
+          <span class="text-xs px-2 py-1 rounded-full ${p.status === 'draft' ? 'bg-yellow-900 text-yellow-300' : 'bg-green-900 text-green-300'}">${p.status}</span>
+        </div>
+      `).join('');
+    }
+
+    function showNewProject() { document.getElementById('newProjectModal').classList.remove('hidden'); }
+    function hideNewProject() { document.getElementById('newProjectModal').classList.add('hidden'); }
+
+    document.getElementById('newProjectForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const title = document.getElementById('projTitle').value;
+      const topic = document.getElementById('projTopic').value;
+      const journal_target = document.getElementById('projJournal').value || null;
+      const res = await fetch('/api/projects', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({title, topic, journal_target}),
+      });
+      if (res.ok) {
+        const {id} = await res.json();
+        window.location.href = `/workspace/${id}`;
+      }
+    });
+
+    async function logout() {
+      await fetch('/api/logout', {method: 'POST'});
+      window.location.href = '/';
+    }
+
+    loadProjects();
+  </script>
+</body>
+</html>

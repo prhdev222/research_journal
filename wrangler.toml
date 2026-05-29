@@ -1,0 +1,7 @@
+name = "research-assistant-cloudflare"
+compatibility_date = "2026-05-29"
+pages_build_output_dir = "public"
+
+[vars]
+OPENAI_MODEL = "gpt-5"
+OPENROUTER_MODEL = "google/gemini-2.5-flash-lite"

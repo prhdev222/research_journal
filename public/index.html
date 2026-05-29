@@ -1,0 +1,1815 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f4efe3">
+  <title>JEDA Research Assistant</title>
+  <style>
+    :root {
+      --bench: #f7f1e7;
+      --bench-deep: #ebe1d2;
+      --paper: #fffdf7;
+      --paper-raised: #ffffff;
+      --paper-inset: #f8f2e8;
+      --ink: #17211e;
+      --muted-ink: #5e6a64;
+      --faint-ink: #8b9690;
+      --graphite: #283430;
+      --glass: rgba(255, 253, 247, 0.9);
+      --line: rgba(32, 45, 39, 0.12);
+      --line-strong: rgba(32, 45, 39, 0.24);
+      --blood: #9e2f3e;
+      --methylene: #0e6f73;
+      --methylene-dark: #0b5559;
+      --amber: #a86416;
+      --violet: #69599a;
+      --green: #3f7454;
+      --shadow: 0 18px 48px rgba(55, 43, 27, 0.12);
+      --shadow-soft: 0 8px 22px rgba(55, 43, 27, 0.08);
+      --radius: 8px;
+      --tap: 46px;
+    }
+
+    * { box-sizing: border-box; }
+    html { min-height: 100%; background: var(--bench); }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+      background:
+        radial-gradient(circle at 15% 0%, rgba(14, 111, 115, 0.08), transparent 34%),
+        linear-gradient(90deg, rgba(20, 107, 114, 0.045) 1px, transparent 1px) 0 0 / 28px 28px,
+        linear-gradient(rgba(159, 38, 57, 0.03) 1px, transparent 1px) 0 0 / 28px 28px,
+        var(--bench);
+    }
+
+    button, input, textarea, select { font: inherit; }
+    button {
+      min-height: var(--tap);
+      border: 0;
+      border-radius: var(--radius);
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    button:disabled { cursor: not-allowed; opacity: 0.58; }
+    textarea, input, select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--paper-inset);
+      color: var(--ink);
+      outline: none;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+    }
+    textarea:focus, input:focus, select:focus {
+      border-color: rgba(20, 107, 114, 0.65);
+      box-shadow: 0 0 0 3px rgba(20, 107, 114, 0.12);
+    }
+
+    .app {
+      width: min(1240px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 16px;
+      padding-bottom: calc(90px + env(safe-area-inset-bottom));
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 0 16px;
+      background: linear-gradient(var(--bench) 78%, rgba(247, 241, 231, 0));
+      backdrop-filter: blur(12px);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+    .mark {
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      color: var(--methylene);
+      box-shadow: var(--shadow-soft);
+      font-weight: 900;
+    }
+    h1, h2, h3, p { margin: 0; }
+    h1 { font-size: 20px; line-height: 1.12; }
+    .subtitle { margin-top: 3px; color: var(--muted-ink); font-size: 12px; }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 36px;
+      padding: 0 11px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255, 253, 247, 0.78);
+      color: var(--muted-ink);
+      font-size: 12px;
+      white-space: nowrap;
+      backdrop-filter: blur(10px);
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(260px, 0.9fr) minmax(0, 1.55fr) minmax(300px, 0.82fr);
+      gap: 16px;
+      align-items: start;
+    }
+    .mode-select {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .mode-card {
+      display: grid;
+      gap: 6px;
+      min-height: 78px;
+      padding: 14px;
+      text-align: left;
+      border: 1px solid var(--line);
+      background: var(--glass);
+      color: var(--ink);
+      box-shadow: var(--shadow-soft);
+      position: relative;
+      overflow: hidden;
+    }
+    .mode-card strong {
+      color: var(--graphite);
+      font-size: 15px;
+    }
+    .mode-card span {
+      color: var(--muted-ink);
+      font-size: 12px;
+      line-height: 1.3;
+    }
+    .mode-card.active {
+      border-color: rgba(159, 38, 57, 0.45);
+      background: #fff4ea;
+      box-shadow: inset 0 -3px 0 rgba(159, 38, 57, 0.35), 0 10px 30px rgba(56, 45, 29, 0.1);
+    }
+    .mode-card.active::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 4px;
+      background: var(--blood);
+    }
+    .project-panel { grid-column: 1; grid-row: 1; }
+    .journal-panel { grid-column: 1; grid-row: 2; }
+    .output-shell { grid-column: 2; grid-row: 1 / span 2; }
+    .control-panel { grid-column: 3; grid-row: 1; }
+    .history-panel { grid-column: 3; grid-row: 2; }
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--glass);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px);
+      overflow: hidden;
+    }
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 253, 247, 0.64);
+    }
+    .panel-title {
+      font-size: 13px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0;
+      color: var(--graphite);
+    }
+    .panel-body { padding: 14px; }
+
+    .project-list {
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+      max-height: 52vh;
+      overflow: auto;
+    }
+    .project-item {
+      display: grid;
+      gap: 4px;
+      width: 100%;
+      padding: 11px;
+      text-align: left;
+      background: var(--paper-raised);
+      border: 1px solid transparent;
+      color: var(--ink);
+    }
+    .project-item.active {
+      border-color: rgba(20, 107, 114, 0.48);
+      box-shadow: inset 4px 0 0 var(--methylene), var(--shadow-soft);
+    }
+    .project-topic {
+      color: var(--muted-ink);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .project-date { color: var(--faint-ink); font-size: 11px; }
+
+    .field-stack { display: grid; gap: 12px; }
+    label {
+      display: grid;
+      gap: 6px;
+      color: var(--muted-ink);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    input, select { min-height: var(--tap); padding: 0 12px; }
+    textarea {
+      min-height: 116px;
+      resize: vertical;
+      padding: 11px 12px;
+      line-height: 1.45;
+    }
+    .note-area { min-height: 150px; }
+
+    .agent-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      max-height: 380px;
+      overflow: auto;
+      padding-right: 2px;
+    }
+    .mode-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+      padding: 4px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(255, 250, 240, 0.52);
+    }
+    .mode {
+      min-height: 38px;
+      padding: 0 8px;
+      background: transparent;
+      color: var(--muted-ink);
+      font-size: 12px;
+      font-weight: 850;
+    }
+    .mode.active {
+      background: var(--graphite);
+      color: white;
+      box-shadow: 0 8px 18px rgba(48, 58, 54, 0.15);
+    }
+    .agent {
+      display: grid;
+      grid-template-columns: 28px 1fr;
+      align-items: center;
+      gap: 8px;
+      padding: 11px;
+      min-height: 66px;
+      text-align: left;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      color: var(--ink);
+      transition: border-color .16s ease, background .16s ease, transform .16s ease, box-shadow .16s ease;
+    }
+    .agent:hover { transform: translateY(-1px); box-shadow: var(--shadow-soft); }
+    .agent.active {
+      border-color: rgba(159, 38, 57, 0.45);
+      background: #fff4ea;
+      box-shadow: inset 0 0 0 1px rgba(159, 38, 57, 0.16), inset 4px 0 0 rgba(159, 38, 57, 0.55), var(--shadow-soft);
+    }
+    .agent-code {
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: white;
+      background: var(--methylene);
+      font-size: 11px;
+      font-weight: 900;
+    }
+    .agent:nth-child(2) .agent-code { background: var(--blood); }
+    .agent:nth-child(3) .agent-code { background: var(--amber); }
+    .agent:nth-child(4) .agent-code { background: var(--violet); }
+    .agent:nth-child(5) .agent-code { background: var(--green); }
+    .agent:nth-child(6) .agent-code { background: #6c4c2e; }
+    .agent:nth-child(7) .agent-code { background: #44515b; }
+    .agent:nth-child(8) .agent-code { background: #2e6670; }
+    .agent-name { display:block; font-size: 13px; font-weight: 850; line-height: 1.15; }
+    .agent-role { display:block; margin-top: 2px; color: var(--muted-ink); font-size: 11px; line-height: 1.2; }
+    .agent-meta { display:block; margin-top: 4px; color: var(--faint-ink); font-size: 10.5px; line-height: 1.2; }
+    .agent-prompted .agent-meta { color: var(--methylene); font-weight: 800; }
+    .prompt-meta {
+      display: grid;
+      gap: 6px;
+      padding: 10px;
+      border: 1px solid rgba(20, 107, 114, 0.16);
+      border-radius: var(--radius);
+      background: rgba(20, 107, 114, 0.06);
+      color: var(--muted-ink);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .prompt-readonly {
+      max-height: 190px;
+      overflow: auto;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.48);
+      color: var(--graphite);
+      font-size: 12px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+    }
+    .char-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--faint-ink);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .primary {
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 0 14px;
+      background: var(--methylene);
+      color: white;
+      font-weight: 800;
+      box-shadow: 0 10px 24px rgba(14, 111, 115, 0.22);
+    }
+    .primary:hover { background: var(--methylene-dark); }
+    .secondary {
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      padding: 0 12px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      color: var(--graphite);
+      font-weight: 750;
+    }
+    .secondary:hover { border-color: var(--line-strong); background: var(--paper-raised); }
+    .danger {
+      color: var(--blood);
+      border-color: rgba(159, 38, 57, 0.24);
+    }
+    .button-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .meeting-grid {
+      display: grid;
+      gap: 6px;
+      padding: 9px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(255, 250, 240, 0.52);
+    }
+    .meeting-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 36px;
+      color: var(--graphite);
+      font-size: 12px;
+      font-weight: 760;
+    }
+    .meeting-option input {
+      width: 16px;
+      min-height: 16px;
+      accent-color: var(--methylene);
+    }
+    .inline-check {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 38px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(255, 250, 240, 0.52);
+      color: var(--graphite);
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .inline-check input {
+      width: 16px;
+      min-height: 16px;
+      accent-color: var(--methylene);
+    }
+    .paper-meta {
+      min-height: 38px;
+      padding: 9px 10px;
+      border: 1px solid rgba(20, 107, 114, 0.16);
+      border-radius: var(--radius);
+      background: rgba(20, 107, 114, 0.06);
+      color: var(--muted-ink);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .paper-text {
+      min-height: 130px;
+      max-height: 220px;
+      overflow: auto;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.34);
+      color: var(--graphite);
+      font-size: 12px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+    }
+
+    .output-shell {
+      min-height: calc(100vh - 132px);
+      display: flex;
+      flex-direction: column;
+    }
+    .output-head {
+      align-items: flex-start;
+      padding: 16px;
+      gap: 12px;
+    }
+    .output-agent {
+      color: var(--blood);
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+    .output-title {
+      margin-top: 3px;
+      font-size: 25px;
+      line-height: 1.12;
+    }
+    .safety-strip {
+      margin-top: 10px;
+      padding: 8px 10px;
+      border: 1px solid rgba(159, 38, 57, 0.2);
+      border-radius: var(--radius);
+      background: rgba(159, 38, 57, 0.06);
+      color: #6d2630;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .response {
+      flex: 1;
+      min-height: 420px;
+      padding: 18px;
+      white-space: pre-wrap;
+      line-height: 1.62;
+      font-size: 15px;
+      overflow: auto;
+      background: linear-gradient(180deg, rgba(255,253,247,0.42), rgba(255,253,247,0));
+    }
+    .invite-strip {
+      display: none;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 12px 14px;
+      border-top: 1px solid var(--line);
+      background: rgba(255, 253, 247, 0.72);
+    }
+    .invite-strip.visible { display: flex; }
+    .invite-strip .secondary {
+      min-height: 36px;
+      font-size: 12px;
+    }
+    .placeholder {
+      display: grid;
+      gap: 12px;
+      align-content: start;
+      color: var(--muted-ink);
+    }
+    .protocol-line {
+      display: grid;
+      grid-template-columns: 84px 1fr;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--line);
+      font-size: 13px;
+    }
+    .protocol-line strong { color: var(--graphite); }
+
+    .history {
+      display: grid;
+      gap: 8px;
+      max-height: 42vh;
+      overflow: auto;
+    }
+    .history-item {
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--paper-raised);
+    }
+    .history-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--muted-ink);
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+    .history-text {
+      margin-top: 6px;
+      color: var(--graphite);
+      font-size: 12px;
+      line-height: 1.35;
+      display: -webkit-box;
+      -webkit-line-clamp: 4;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .mobile-actions {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 30;
+      display: none;
+      gap: 8px;
+      padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+      background: rgba(255, 253, 247, 0.94);
+      border-top: 1px solid var(--line);
+      backdrop-filter: blur(16px);
+      box-shadow: 0 -12px 34px rgba(55, 43, 27, 0.12);
+    }
+    .mobile-actions .primary { flex: 1; }
+    .mobile-actions .secondary {
+      width: var(--tap);
+      min-width: var(--tap);
+      padding: 0;
+      font-size: 12px;
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: calc(86px + env(safe-area-inset-bottom));
+      z-index: 40;
+      transform: translateX(-50%);
+      max-width: min(92vw, 520px);
+      padding: 10px 12px;
+      border-radius: 999px;
+      background: var(--graphite);
+      color: white;
+      font-size: 13px;
+      box-shadow: var(--shadow);
+    }
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      display: grid;
+      place-items: center;
+      padding: 16px;
+      background: rgba(23, 33, 30, 0.38);
+      backdrop-filter: blur(8px);
+    }
+    .modal {
+      width: min(680px, 100%);
+      max-height: min(86vh, 760px);
+      display: flex;
+      flex-direction: column;
+    }
+    .modal .panel-body {
+      overflow: auto;
+    }
+    .hidden { display: none !important; }
+
+    @media (max-width: 980px) {
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+      .mode-select {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .project-panel,
+      .journal-panel,
+      .output-shell,
+      .control-panel,
+      .history-panel {
+        grid-column: auto;
+        grid-row: auto;
+      }
+      .output-shell {
+        min-height: auto;
+      }
+      .control-panel { order: 3; }
+      .output-shell { order: 2; }
+      .project-panel { order: 1; }
+      .journal-panel { order: 1; }
+      .history-panel { order: 4; }
+      .output-title {
+        font-size: 21px;
+      }
+      .project-list,
+      .history {
+        max-height: none;
+      }
+      .mobile-actions {
+        display: flex;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .app {
+        padding: 10px;
+        padding-bottom: calc(92px + env(safe-area-inset-bottom));
+      }
+      .topbar {
+        align-items: flex-start;
+        gap: 8px;
+      }
+      .status-pill {
+        max-width: 118px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .mode-select {
+        grid-template-columns: 1fr;
+        gap: 8px;
+      }
+      .mode-card {
+        min-height: 64px;
+        padding: 11px 12px;
+      }
+      .mode-card strong { font-size: 14px; }
+      .mode-card span { font-size: 11.5px; }
+      .agent-grid {
+        grid-template-columns: 1fr;
+        max-height: none;
+      }
+      .button-row {
+        grid-template-columns: 1fr 1fr;
+      }
+      .mode-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .mode { min-height: 40px; font-size: 11.5px; padding: 0 4px; }
+      .output-head {
+        padding: 12px;
+        display: grid;
+        grid-template-columns: 1fr;
+      }
+      .response {
+        min-height: 300px;
+        padding: 12px;
+        font-size: 14px;
+      }
+      .protocol-line {
+        grid-template-columns: 1fr;
+        gap: 3px;
+      }
+      .panel-body { padding: 12px; }
+      .modal-backdrop { padding: 10px; place-items: end center; }
+      .modal { max-height: 92vh; }
+      .brand { align-items: flex-start; }
+      .mark { width: 40px; height: 40px; }
+      h1 { font-size: 18px; }
+      .subtitle { font-size: 11.5px; }
+      .status-pill { min-height: 32px; padding: 0 9px; font-size: 11px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="mark">JD</div>
+        <div>
+          <h1>JEDA Research Assistant</h1>
+          <p class="subtitle">Cloudflare Pages · mobile research workbench</p>
+        </div>
+      </div>
+      <div class="status-pill" title="API key stays inside Cloudflare Functions">
+        <span class="status-dot"></span>
+        <span id="statusText">Local notes</span>
+      </div>
+    </header>
+
+    <nav class="mode-select" aria-label="Workspace mode">
+      <button class="mode-card" id="researchModeBtn" type="button">
+        <strong>Research Journal</strong>
+        <span>Build questions, protocols, stats plans, and writing notes.</span>
+      </button>
+      <button class="mode-card" id="journalModeBtn" type="button">
+        <strong>Journal Club</strong>
+        <span>Read papers, appraise evidence, and ask Professor Neo.</span>
+      </button>
+    </nav>
+
+    <main class="workspace">
+      <section class="panel project-panel">
+        <div class="panel-head">
+          <h2 class="panel-title">Projects</h2>
+          <button class="secondary" id="newProjectBtn" type="button">New</button>
+        </div>
+        <div class="panel-body field-stack">
+          <label>
+            Title
+            <input id="titleInput" autocomplete="off" placeholder="e.g. AML MRD review">
+          </label>
+          <label>
+            Research topic
+            <textarea id="topicInput" placeholder="Paste a de-identified research idea, question, or keywords."></textarea>
+          </label>
+          <label>
+            Journal style
+            <select id="journalInput">
+              <option value="generic">Generic research memo</option>
+              <option value="Blood">Blood</option>
+              <option value="British Journal of Haematology">British Journal of Haematology</option>
+              <option value="Haematologica">Haematologica</option>
+              <option value="Annals of Hematology">Annals of Hematology</option>
+            </select>
+          </label>
+          <button class="primary" id="saveProjectBtn" type="button">Save project</button>
+          <div class="project-list" id="projectList"></div>
+        </div>
+      </section>
+
+      <section class="panel journal-panel" id="journalPanel">
+        <div class="panel-head">
+          <h2 class="panel-title">Paper Intake</h2>
+          <button class="secondary" id="clearPaperBtn" type="button">Clear</button>
+        </div>
+        <div class="panel-body field-stack">
+          <label>
+            Paper link
+            <input id="paperUrlInput" type="url" inputmode="url" placeholder="https://doi.org/... or PubMed/journal page">
+          </label>
+          <button class="secondary" id="readLinkBtn" type="button">Read link</button>
+          <label>
+            Upload PDF or text
+            <input id="paperFileInput" type="file" accept="application/pdf,text/plain,.txt,.md">
+          </label>
+          <div class="paper-meta" id="paperMeta">No paper loaded yet.</div>
+          <div class="paper-text" id="paperTextPreview">Upload a PDF/text file or read a paper link to prepare Journal Club analysis.</div>
+          <button class="primary" id="journalClubBtn" type="button">Analyze paper</button>
+        </div>
+      </section>
+
+      <section class="panel output-shell">
+        <div class="panel-head output-head">
+          <div>
+            <div class="output-agent" id="activeAgentLabel">Summary</div>
+            <h2 class="output-title" id="activeProjectTitle">Untitled research note</h2>
+            <div class="safety-strip">
+              PDPA-first: keep patient names, HN, phone, exact dates, and rare identifying combinations out of prompts.
+            </div>
+          </div>
+          <div class="button-row">
+            <button class="secondary" id="thaiBtn" type="button">Thai</button>
+            <button class="secondary" id="copyBtn" type="button">Copy</button>
+          </div>
+        </div>
+        <div class="response" id="responseBox">
+          <div class="placeholder">
+            <div class="protocol-line"><strong>1. Capture</strong><span>Write a de-identified topic or paste working notes.</span></div>
+            <div class="protocol-line"><strong>2. Choose</strong><span>Select an agent for literature, research question, design, ethics, stats, writing, de-ID, or summary.</span></div>
+            <div class="protocol-line"><strong>3. Ask</strong><span>Send the request. The AI key is used only by the Cloudflare Function.</span></div>
+          </div>
+        </div>
+        <div class="invite-strip" id="inviteStrip">
+          <button class="secondary" type="button" data-invite="watson">Ask Watson</button>
+          <button class="secondary" type="button" data-invite="chen">Ask Chen</button>
+          <button class="secondary" type="button" data-invite="mimi">Ask Mimi</button>
+          <button class="secondary" type="button" data-invite="osler">Ask Osler</button>
+          <button class="secondary" type="button" data-invite="perplexity">Ask Perplexity</button>
+        </div>
+      </section>
+
+      <aside class="panel control-panel">
+        <div class="panel-head">
+          <h2 class="panel-title" id="agentPanelTitle">Agents</h2>
+          <div class="button-row">
+            <button class="secondary" id="promptBtn" type="button">Prompt</button>
+            <button class="secondary" id="exportBtn" type="button">Export</button>
+          </div>
+        </div>
+        <div class="panel-body field-stack">
+          <div class="agent-grid" id="agentGrid"></div>
+          <label>
+            Response length
+            <div class="mode-grid" id="modeGrid"></div>
+          </label>
+          <label>
+            Ask this agent
+            <textarea id="questionInput" class="note-area" placeholder="What do you want this agent to do next?"></textarea>
+          </label>
+          <button class="primary" id="askBtn" type="button">Ask AI</button>
+          <label>
+            Meeting agents
+            <div class="meeting-grid" id="meetingAgentGrid"></div>
+          </label>
+          <label class="inline-check">
+            <input id="activeMeetingInput" type="checkbox">
+            <span>Active Meeting</span>
+          </label>
+          <button class="secondary" id="meetingBtn" type="button">Meet Agents</button>
+          <div class="button-row">
+            <button class="secondary" id="loadSampleBtn" type="button">Sample</button>
+            <button class="secondary danger" id="clearBtn" type="button">Clear</button>
+          </div>
+        </div>
+      </aside>
+
+      <section class="panel history-panel">
+        <div class="panel-head">
+          <h2 class="panel-title">Session History</h2>
+          <button class="secondary" id="clearHistoryBtn" type="button">Reset</button>
+        </div>
+        <div class="panel-body">
+          <div class="history" id="historyList"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="mobile-actions">
+    <button class="secondary" id="mobileSaveBtn" type="button" aria-label="Save project">S</button>
+    <button class="primary" id="mobileAskBtn" type="button">Ask AI</button>
+    <button class="secondary" id="mobileThaiBtn" type="button" aria-label="Translate Thai">TH</button>
+    <button class="secondary" id="mobileCopyBtn" type="button" aria-label="Copy output">C</button>
+  </div>
+
+  <div class="modal-backdrop hidden" id="promptModal" role="dialog" aria-modal="true" aria-labelledby="promptModalTitle">
+    <section class="panel modal">
+      <div class="panel-head">
+        <h2 class="panel-title" id="promptModalTitle">Agent Prompt</h2>
+        <button class="secondary" id="closePromptBtn" type="button">Close</button>
+      </div>
+      <div class="panel-body field-stack">
+        <div class="prompt-meta" id="promptMeta"></div>
+        <label>
+          Base prompt
+          <div class="prompt-readonly" id="basePromptView"></div>
+        </label>
+        <label>
+          Add custom prompt for this project
+          <textarea id="customPromptInput" maxlength="600" placeholder="Example: Always answer in Thai. Focus on hematology practice in Thailand. Keep final recommendation under 5 bullets."></textarea>
+        </label>
+        <div class="char-row">
+          <span>Saved only in this browser project. Sent only to this agent.</span>
+          <span id="customPromptCount">0/600</span>
+        </div>
+        <div class="button-row">
+          <button class="secondary danger" id="clearPromptBtn" type="button">Clear</button>
+          <button class="primary" id="savePromptBtn" type="button">Save prompt</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="toast hidden" id="toast"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    const agentSets = {
+      research: [
+        ["literature", "Literature", "Search terms, gaps"],
+        ["question", "Question", "PICO and novelty"],
+        ["design", "Design", "Cohort and endpoints"],
+        ["ethics", "Ethics", "IRB and PDPA"],
+        ["stats", "Stats", "Analysis plan"],
+        ["writing", "Writing", "Manuscript prose"],
+        ["deid", "De-ID", "Privacy check"],
+        ["neo", "Professor Neo", "Claude expert"],
+        ["perplexity", "Perplexity", "Search guest"],
+        ["watson", "Prof. Watson", "GPT-5 opinion"],
+        ["chen", "Prof. Chen", "DeepSeek strategy"],
+        ["mimi", "Prof. Mimi", "R1 hard reasoning"],
+        ["osler", "Prof. Osler", "Opus premium"],
+        ["fisher", "Prof. Fisher", "Research decision"],
+        ["summary", "Summary", "Next actions"]
+      ],
+      journal: [
+        ["journalclub", "Journal Club", "Paper appraisal"],
+        ["neo", "Professor Neo", "Expert opinion"],
+        ["methods", "Methods", "Validity critique"],
+        ["stats", "Stats", "Numbers and models"],
+        ["clinical", "Clinical", "Practice fit"],
+        ["deid", "De-ID", "Privacy check"],
+        ["perplexity", "Perplexity", "Search guest"],
+        ["watson", "Prof. Watson", "GPT-5 opinion"],
+        ["chen", "Prof. Chen", "DeepSeek strategy"],
+        ["mimi", "Prof. Mimi", "R1 hard reasoning"],
+        ["osler", "Prof. Osler", "Opus premium"],
+        ["summary", "Summary", "Take-home points"]
+      ]
+    };
+
+    const responseModes = [
+      ["short", "Short", "5 bullets"],
+      ["normal", "Normal", "compact"],
+      ["deep", "Deep", "fuller"]
+    ];
+
+    const agentProfiles = {
+      literature: { model: "Gemini Flash-Lite", character: "fast evidence mapper; verify-first" },
+      question: { model: "Gemini Flash-Lite", character: "PICO-focused; feasibility-first" },
+      design: { model: "Gemini Flash", character: "protocol builder; bias-aware" },
+      ethics: { model: "Gemini Flash-Lite", character: "PDPA-first; risk-aware" },
+      stats: { model: "Gemini Flash", character: "assumption checker; analysis-plan focused" },
+      writing: { model: "Gemini Flash", character: "concise academic editor" },
+      deid: { model: "Gemini Flash-Lite", character: "privacy sentinel" },
+      summary: { model: "Gemini Flash-Lite", character: "action-focused summarizer" },
+      journalclub: { model: "Gemini Flash", character: "structured paper appraiser" },
+      neo: { model: "Claude Sonnet", character: "senior professor; sharp synthesis" },
+      fisher: { model: "Gemini Flash", character: "research decision professor" },
+      methods: { model: "Gemini Flash", character: "validity critic" },
+      clinical: { model: "Gemini Flash-Lite", character: "bedside applicability reviewer" },
+      perplexity: { model: "Perplexity Sonar", character: "web-grounded search guest" },
+      watson: { model: "GPT-5", character: "second-opinion professor" },
+      chen: { model: "DeepSeek V3.2", character: "end-to-end research strategist" },
+      mimi: { model: "DeepSeek R1", character: "hard-reasoning professor" },
+      osler: { model: "Claude Opus", character: "important decisions only" }
+    };
+
+    const basePrompts = {
+      literature: "You are a hematology research literature scout. Frame search terms, summarize likely evidence areas, identify gaps, and suggest sources to verify. Do not invent citations.",
+      question: "Turn broad clinical or translational ideas into precise research questions. Prefer PICO/PECO. Identify population, exposure/intervention, comparator, outcome, feasibility, and novelty.",
+      design: "Act as a clinical research methods assistant. Propose practical designs, cohorts, variables, endpoints, bias risks, and feasibility checks.",
+      ethics: "Act as an IRB and research ethics assistant. Flag consent, privacy, risk, benefit, vulnerable population, data governance, and PDPA-sensitive issues.",
+      stats: "Act as a biostatistics planning assistant. Suggest analysis plans, variables, tests, model choices, assumptions, missing-data handling, and sample size considerations.",
+      writing: "Draft concise academic research prose with structured outlines, precise claims, cautious language, and journal-ready sectioning.",
+      deid: "Act as a privacy and de-identification reviewer. Identify personal data, dates, locations, rare combinations, and patient-identifying details. Suggest safer wording.",
+      summary: "Summarize research plans into clear next actions, risks, assumptions, and decisions needed.",
+      journalclub: "Analyze papers with a practical clinical research lens: question, design, population, intervention/exposure, outcomes, key results, validity, bias, applicability, limitations, and discussion questions.",
+      neo: "Professor Neo is a senior professor-level clinical researcher and journal club expert. Give direct, nuanced, practical expert opinion. Identify what matters, weaknesses, clinical relevance, reviewer challenges, and next question.",
+      fisher: "Professor Fisher synthesizes research meetings into practical decisions: direction, rationale, weakest assumption, design/statistical risk, and next action.",
+      methods: "Critique internal validity, design choice, comparator, endpoints, confounding, selection bias, measurement bias, missing data, and whether conclusions match methods.",
+      clinical: "Assess clinical applicability: patient population, real-world fit, benefit-risk, implementation, generalizability, and whether results should change practice.",
+      perplexity: "Act as a web-grounded research search guest powered by Perplexity Sonar. Find current evidence signals, likely citations, controversies, and search directions.",
+      watson: "Professor Watson is a GPT-5 expert research analyst. Focus on hidden assumptions, alternative explanations, decision logic, and what would change your mind.",
+      chen: "Professor Chen is a DeepSeek research strategist helping across idea refinement, literature direction, design, variables, statistics, workflow, manuscript structure, and reviewer concerns.",
+      mimi: "Professor Mimi is a DeepSeek R1 hard-reasoning expert for causal reasoning, difficult statistics, mechanism logic, conflicting evidence, hidden assumptions, and complex decisions.",
+      osler: "Professor Osler is a Claude Opus premium advisor for important, high-stakes research or journal decisions. Challenge assumptions, resolve tradeoffs, and make a clear decision recommendation."
+    };
+
+    const storeKey = "jeda-research-cloudflare-v1";
+    let state = loadState();
+    let workspaceMode = state.workspaceMode || "research";
+    let activeAgent = state.activeAgent || defaultAgent(workspaceMode);
+    let responseMode = state.responseMode || "short";
+    let busy = false;
+
+    const els = {
+      title: document.getElementById("titleInput"),
+      topic: document.getElementById("topicInput"),
+      journal: document.getElementById("journalInput"),
+      question: document.getElementById("questionInput"),
+      paperUrl: document.getElementById("paperUrlInput"),
+      paperFile: document.getElementById("paperFileInput"),
+      paperMeta: document.getElementById("paperMeta"),
+      paperPreview: document.getElementById("paperTextPreview"),
+      activeMeeting: document.getElementById("activeMeetingInput"),
+      journalPanel: document.getElementById("journalPanel"),
+      agentPanelTitle: document.getElementById("agentPanelTitle"),
+      researchModeBtn: document.getElementById("researchModeBtn"),
+      journalModeBtn: document.getElementById("journalModeBtn"),
+      projects: document.getElementById("projectList"),
+      agents: document.getElementById("agentGrid"),
+      meetingAgents: document.getElementById("meetingAgentGrid"),
+      modes: document.getElementById("modeGrid"),
+      response: document.getElementById("responseBox"),
+      inviteStrip: document.getElementById("inviteStrip"),
+      history: document.getElementById("historyList"),
+      activeLabel: document.getElementById("activeAgentLabel"),
+      activeTitle: document.getElementById("activeProjectTitle"),
+      status: document.getElementById("statusText"),
+      toast: document.getElementById("toast"),
+      ask: document.getElementById("askBtn"),
+      meeting: document.getElementById("meetingBtn"),
+      thai: document.getElementById("thaiBtn"),
+      mobileThai: document.getElementById("mobileThaiBtn"),
+      mobileAsk: document.getElementById("mobileAskBtn"),
+      promptModal: document.getElementById("promptModal"),
+      promptMeta: document.getElementById("promptMeta"),
+      basePrompt: document.getElementById("basePromptView"),
+      customPrompt: document.getElementById("customPromptInput"),
+      customPromptCount: document.getElementById("customPromptCount")
+    };
+
+    document.getElementById("researchModeBtn").addEventListener("click", () => setWorkspaceMode("research"));
+    document.getElementById("journalModeBtn").addEventListener("click", () => setWorkspaceMode("journal"));
+    document.getElementById("newProjectBtn").addEventListener("click", newProject);
+    document.getElementById("saveProjectBtn").addEventListener("click", saveProject);
+    document.getElementById("mobileSaveBtn").addEventListener("click", saveProject);
+    document.getElementById("askBtn").addEventListener("click", askAI);
+    document.getElementById("meetingBtn").addEventListener("click", meetAgents);
+    document.getElementById("mobileAskBtn").addEventListener("click", askAI);
+    document.getElementById("copyBtn").addEventListener("click", copyOutput);
+    document.getElementById("mobileCopyBtn").addEventListener("click", copyOutput);
+    document.getElementById("thaiBtn").addEventListener("click", translateThai);
+    document.getElementById("mobileThaiBtn").addEventListener("click", translateThai);
+    document.getElementById("exportBtn").addEventListener("click", exportMarkdown);
+    document.getElementById("promptBtn").addEventListener("click", openPromptModal);
+    document.getElementById("closePromptBtn").addEventListener("click", closePromptModal);
+    document.getElementById("savePromptBtn").addEventListener("click", saveCustomPrompt);
+    document.getElementById("clearPromptBtn").addEventListener("click", clearCustomPrompt);
+    document.getElementById("customPromptInput").addEventListener("input", updatePromptCount);
+    document.getElementById("promptModal").addEventListener("click", event => {
+      if (event.target.id === "promptModal") closePromptModal();
+    });
+    document.getElementById("clearBtn").addEventListener("click", clearInputs);
+    document.getElementById("clearHistoryBtn").addEventListener("click", resetHistory);
+    document.getElementById("loadSampleBtn").addEventListener("click", loadSample);
+    document.getElementById("readLinkBtn").addEventListener("click", readPaperLink);
+    document.getElementById("paperFileInput").addEventListener("change", readPaperFile);
+    document.getElementById("journalClubBtn").addEventListener("click", analyzeJournalClub);
+    document.getElementById("clearPaperBtn").addEventListener("click", clearPaper);
+    document.getElementById("inviteStrip").addEventListener("click", inviteFollowup);
+
+    render();
+
+    function loadState() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(storeKey));
+        if (parsed && Array.isArray(parsed.projects)) return parsed;
+      } catch {}
+      const id = crypto.randomUUID();
+      return {
+        workspaceMode: "research",
+        activeAgent: "summary",
+        responseMode: "short",
+        activeProjectId: id,
+        projects: [{
+          id,
+          title: "Untitled research note",
+          topic: "",
+          journal: "generic",
+          createdAt: new Date().toISOString(),
+          history: []
+        }]
+      };
+    }
+
+    function persist() {
+      state.workspaceMode = workspaceMode;
+      state.activeAgent = activeAgent;
+      state.responseMode = responseMode;
+      localStorage.setItem(storeKey, JSON.stringify(state));
+    }
+
+    function activeProject() {
+      return state.projects.find(project => project.id === state.activeProjectId) || state.projects[0];
+    }
+
+    function render() {
+      const project = activeProject();
+      if (!project) return;
+      els.title.value = project.title || "";
+      els.topic.value = project.topic || "";
+      els.journal.value = project.journal || "generic";
+      els.paperUrl.value = project.paperUrl || "";
+      renderPaper(project);
+      els.activeTitle.textContent = project.title || "Untitled research note";
+      els.activeLabel.textContent = `${agentName(activeAgent)} / ${modeName(responseMode)}`;
+      renderWorkspaceMode();
+      renderAgents();
+      renderMeetingAgents();
+      renderModes();
+      renderProjects();
+      renderHistory();
+      if (project.lastOutput) setOutput(project.lastOutput);
+    }
+
+    function renderAgents() {
+      const agents = currentAgents();
+      if (!agents.some(([id]) => id === activeAgent)) {
+        activeAgent = defaultAgent(workspaceMode);
+        persist();
+      }
+      els.agents.innerHTML = agents.map(([id, name, role]) => `
+        <button class="agent ${id === activeAgent ? "active" : ""} ${customPromptFor(id) ? "agent-prompted" : ""}" type="button" data-agent="${id}">
+          <span class="agent-code">${name.slice(0, 2).toUpperCase()}</span>
+          <span>
+            <span class="agent-name">${name}</span>
+            <span class="agent-role">${role}</span>
+            <span class="agent-meta">${agentProfileLine(id)}</span>
+          </span>
+        </button>
+      `).join("");
+      els.agents.querySelectorAll("button").forEach(button => {
+        button.addEventListener("click", () => {
+          activeAgent = button.dataset.agent;
+          persist();
+          renderAgents();
+          els.activeLabel.textContent = `${agentName(activeAgent)} / ${modeName(responseMode)}`;
+          if (!els.promptModal.classList.contains("hidden")) renderPromptModal();
+        });
+      });
+    }
+
+    function renderMeetingAgents() {
+      const defaults = defaultMeetingAgents(workspaceMode);
+      els.meetingAgents.innerHTML = currentAgents()
+        .filter(([id]) => workspaceMode === "research" || id !== "neo")
+        .map(([id, name]) => `
+          <label class="meeting-option">
+            <input type="checkbox" value="${id}" ${defaults.includes(id) ? "checked" : ""}>
+            <span>${name}</span>
+          </label>
+        `)
+        .join("");
+    }
+
+    function renderWorkspaceMode() {
+      els.researchModeBtn.classList.toggle("active", workspaceMode === "research");
+      els.journalModeBtn.classList.toggle("active", workspaceMode === "journal");
+      els.journalPanel.classList.toggle("hidden", workspaceMode !== "journal");
+      els.agentPanelTitle.textContent = workspaceMode === "journal" ? "Journal Club Agents" : "Research Agents";
+      if (!busy) els.status.textContent = workspaceMode === "journal" ? "Journal club" : "Research journal";
+    }
+
+    function setWorkspaceMode(nextMode) {
+      workspaceMode = nextMode;
+      activeAgent = defaultAgent(workspaceMode);
+      if (workspaceMode === "journal" && responseMode === "short") responseMode = "normal";
+      persist();
+      renderWorkspaceMode();
+      renderAgents();
+      renderMeetingAgents();
+      renderModes();
+      els.activeLabel.textContent = `${agentName(activeAgent)} / ${modeName(responseMode)}`;
+      toast(workspaceMode === "journal" ? "Journal Club mode." : "Research Journal mode.");
+    }
+
+    function renderModes() {
+      els.modes.innerHTML = responseModes.map(([id, name, hint]) => `
+        <button class="mode ${id === responseMode ? "active" : ""}" type="button" data-mode="${id}" title="${hint}">
+          ${name}
+        </button>
+      `).join("");
+      els.modes.querySelectorAll("button").forEach(button => {
+        button.addEventListener("click", () => {
+          responseMode = button.dataset.mode;
+          persist();
+          renderModes();
+          els.activeLabel.textContent = `${agentName(activeAgent)} / ${modeName(responseMode)}`;
+        });
+      });
+    }
+
+    function renderProjects() {
+      els.projects.innerHTML = state.projects.map(project => `
+        <button class="project-item ${project.id === state.activeProjectId ? "active" : ""}" type="button" data-project="${project.id}">
+          <strong>${escapeHtml(project.title || "Untitled research note")}</strong>
+          <span class="project-topic">${escapeHtml(project.topic || "No topic yet")}</span>
+          <span class="project-date">${new Date(project.createdAt).toLocaleString()}</span>
+        </button>
+      `).join("");
+      els.projects.querySelectorAll("button").forEach(button => {
+        button.addEventListener("click", () => {
+          saveProject(false);
+          state.activeProjectId = button.dataset.project;
+          persist();
+          render();
+        });
+      });
+    }
+
+    function renderHistory() {
+      const project = activeProject();
+      const history = project.history || [];
+      if (!history.length) {
+        els.history.innerHTML = `<p class="project-topic">No AI responses yet.</p>`;
+        return;
+      }
+      els.history.innerHTML = history.slice().reverse().map(item => `
+        <article class="history-item">
+          <div class="history-top"><span>${escapeHtml(agentName(item.agent))}</span><span>${new Date(item.createdAt).toLocaleTimeString()}</span></div>
+          <div class="history-text">${escapeHtml(item.output)}</div>
+        </article>
+      `).join("");
+    }
+
+    function saveProject(showMessage = true) {
+      const project = activeProject();
+      project.title = els.title.value.trim() || "Untitled research note";
+      project.topic = els.topic.value.trim();
+      project.journal = els.journal.value;
+      project.paperUrl = els.paperUrl.value.trim();
+      persist();
+      renderProjects();
+      els.activeTitle.textContent = project.title;
+      if (showMessage) toast("Project saved on this device.");
+    }
+
+    function openPromptModal() {
+      renderPromptModal();
+      els.promptModal.classList.remove("hidden");
+      els.customPrompt.focus();
+    }
+
+    function closePromptModal() {
+      els.promptModal.classList.add("hidden");
+    }
+
+    function renderPromptModal() {
+      const profile = agentProfiles[activeAgent] || { model: "OpenRouter", character: "compact research helper" };
+      els.promptMeta.innerHTML = [
+        `<strong>${escapeHtml(agentName(activeAgent))}</strong>`,
+        `Model: ${escapeHtml(profile.model)}`,
+        `Character: ${escapeHtml(profile.character)}`
+      ].join("<br>");
+      els.basePrompt.textContent = basePrompts[activeAgent] || "Compact research helper. Follow the selected response length and PDPA-first safety rules.";
+      els.customPrompt.value = customPromptFor(activeAgent);
+      updatePromptCount();
+    }
+
+    function customPromptFor(agentId) {
+      const project = activeProject();
+      return String(project?.customPrompts?.[agentId] || "").trim().slice(0, 600);
+    }
+
+    function saveCustomPrompt() {
+      const project = activeProject();
+      project.customPrompts = project.customPrompts || {};
+      const value = els.customPrompt.value.trim().slice(0, 600);
+      if (value) project.customPrompts[activeAgent] = value;
+      else delete project.customPrompts[activeAgent];
+      persist();
+      renderAgents();
+      updatePromptCount();
+      toast(value ? "Custom prompt saved for this agent." : "Custom prompt cleared.");
+    }
+
+    function clearCustomPrompt() {
+      els.customPrompt.value = "";
+      saveCustomPrompt();
+    }
+
+    function updatePromptCount() {
+      els.customPromptCount.textContent = `${els.customPrompt.value.length}/600`;
+    }
+
+    function newProject() {
+      saveProject(false);
+      const id = crypto.randomUUID();
+      state.projects.unshift({
+        id,
+        title: "Untitled research note",
+        topic: "",
+        journal: "generic",
+        createdAt: new Date().toISOString(),
+        paperUrl: "",
+        paperTitle: "",
+        paperText: "",
+        customPrompts: {},
+        history: []
+      });
+      state.activeProjectId = id;
+      persist();
+      els.question.value = "";
+      setOutput("");
+      render();
+      els.title.focus();
+    }
+
+    async function askAI() {
+      if (busy) return;
+      saveProject(false);
+      const project = activeProject();
+      const payload = {
+        agent: activeAgent,
+        mode: responseMode,
+        topic: project.topic,
+        journal: project.journal,
+        question: els.question.value.trim(),
+        notes: project.lastOutput || "",
+        customPrompt: customPromptFor(activeAgent)
+      };
+      if (!payload.topic && !payload.question && !payload.notes) {
+        toast("Add a topic or question first.");
+        return;
+      }
+      setBusy(true);
+      setOutput(`Thinking in ${modeName(responseMode)} mode...\n\nThe request is going through the Cloudflare Function. No API key is stored in the browser.`);
+      try {
+        const res = await fetch("/api/ask", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "AI request failed.");
+        project.lastOutput = data.output;
+        project.history = project.history || [];
+        project.history.push({
+          agent: activeAgent,
+          mode: responseMode,
+          output: data.output,
+          createdAt: new Date().toISOString()
+        });
+        persist();
+        setOutput(data.output);
+        renderHistory();
+        toast("AI response saved to session history.");
+      } catch (error) {
+        setOutput(`Error: ${error.message}\n\nCheck Cloudflare secrets and deployment logs.`);
+        toast(error.message);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function meetAgents() {
+      if (busy) return;
+      saveProject(false);
+      const project = activeProject();
+      const agents = selectedMeetingAgents();
+      if (agents.length < 2) {
+        toast("Choose 2-4 meeting agents.");
+        return;
+      }
+      const question = els.question.value.trim() || project.topic || project.paperTitle;
+      if (!question && !project.paperText) {
+        toast("Add a meeting question or load a paper.");
+        return;
+      }
+      setBusy(true);
+      setOutput(`Meeting started...\n\n${agents.map(agentName).join(", ")} will answer briefly. ${finalSynthesizerName()} will synthesize.`);
+      try {
+        const res = await fetch("/api/meeting", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            mode: responseMode,
+            agents,
+            activeMeeting: els.activeMeeting.checked,
+            question,
+            paperText: workspaceMode === "journal" ? project.paperText || "" : "",
+            customPrompts: project.customPrompts || {},
+            project: {
+              id: project.id,
+              title: project.title,
+              mode: workspaceMode,
+              topic: project.topic,
+              journal: project.journal,
+              paperTitle: project.paperTitle,
+              paperText: workspaceMode === "journal" ? project.paperText || "" : ""
+            }
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Meeting failed.");
+        const output = formatMeetingOutput(data);
+        project.lastOutput = output;
+        project.activeFollowup = data.active?.question || "";
+        project.activeContext = output.slice(0, 4500);
+        project.history = project.history || [];
+        project.history.push({
+          agent: "meeting",
+          mode: responseMode,
+          output,
+          createdAt: new Date().toISOString()
+        });
+        persist();
+        setOutput(output);
+        renderHistory();
+        toast(data.memory_enabled ? "Meeting saved with compact Turso memory." : "Meeting complete. Turso memory is not configured.");
+      } catch (error) {
+        setOutput(`Error: ${error.message}\n\nCheck API keys, Turso settings, and Cloudflare logs.`);
+        toast(error.message);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function readPaperLink() {
+      const project = activeProject();
+      const url = els.paperUrl.value.trim();
+      if (!url) {
+        toast("Paste a paper link first.");
+        return;
+      }
+      setBusy(true);
+      els.paperMeta.textContent = "Reading paper link...";
+      try {
+        const res = await fetch("/api/read-paper", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ url })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Could not read paper link.");
+        project.paperUrl = data.url;
+        project.paperTitle = data.title;
+        project.paperText = data.text;
+        project.title = project.title === "Untitled research note" ? data.title : project.title;
+        persist();
+        renderPaper(project);
+        renderProjects();
+        toast("Paper text extracted from link.");
+      } catch (error) {
+        els.paperMeta.textContent = error.message;
+        toast(error.message);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function readPaperFile(event) {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      const project = activeProject();
+      setBusy(true);
+      els.paperMeta.textContent = `Reading ${file.name}...`;
+      try {
+        const text = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
+          ? await extractPdfText(file)
+          : await file.text();
+        if (!text.trim()) throw new Error("Could not extract readable text from this file.");
+        project.paperTitle = file.name.replace(/\.[^.]+$/, "");
+        project.paperText = text.replace(/\s+/g, " ").trim().slice(0, 24000);
+        project.title = project.title === "Untitled research note" ? project.paperTitle : project.title;
+        persist();
+        renderPaper(project);
+        renderProjects();
+        toast("Paper file loaded.");
+      } catch (error) {
+        els.paperMeta.textContent = error.message;
+        toast(error.message);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function extractPdfText(file) {
+      if (!window.pdfjsLib) {
+        throw new Error("PDF reader did not load. Check internet connection or paste text instead.");
+      }
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+      const buffer = await file.arrayBuffer();
+      const pdf = await window.pdfjsLib.getDocument({ data: buffer }).promise;
+      const pageLimit = Math.min(pdf.numPages, 30);
+      const pages = [];
+      for (let pageNumber = 1; pageNumber <= pageLimit; pageNumber += 1) {
+        const page = await pdf.getPage(pageNumber);
+        const content = await page.getTextContent();
+        pages.push(content.items.map(item => item.str).join(" "));
+      }
+      return pages.join("\n\n");
+    }
+
+    async function analyzeJournalClub() {
+      const project = activeProject();
+      if (!project.paperText) {
+        toast("Load a paper first.");
+        return;
+      }
+      workspaceMode = "journal";
+      activeAgent = "journalclub";
+      responseMode = responseMode === "short" ? "normal" : responseMode;
+      els.question.value = [
+        "Analyze this paper for journal club.",
+        "Use: clinical question, design, population, intervention/exposure, outcome, results, validity, bias, applicability, limitations, and 3 discussion questions.",
+        "",
+        `Paper title/source: ${project.paperTitle || project.paperUrl || "uploaded paper"}`,
+        "",
+        project.paperText.slice(0, responseMode === "deep" ? 14000 : 8000)
+      ].join("\n");
+      project.topic = project.paperTitle || project.paperUrl || project.topic || "Journal club paper";
+      els.topic.value = project.topic;
+      saveProject(false);
+      renderWorkspaceMode();
+      renderAgents();
+      renderModes();
+      els.activeLabel.textContent = `${agentName(activeAgent)} / ${modeName(responseMode)}`;
+      await askAI();
+    }
+
+    function renderPaper(project) {
+      const text = project.paperText || "";
+      const source = project.paperTitle || project.paperUrl || "No paper loaded yet.";
+      els.paperMeta.textContent = text
+        ? `${source} · ${text.length.toLocaleString()} chars extracted`
+        : "No paper loaded yet.";
+      els.paperPreview.textContent = text
+        ? text.slice(0, 1800) + (text.length > 1800 ? "\n\n..." : "")
+        : "Upload a PDF/text file or read a paper link to prepare Journal Club analysis.";
+    }
+
+    function clearPaper() {
+      const project = activeProject();
+      project.paperUrl = "";
+      project.paperTitle = "";
+      project.paperText = "";
+      els.paperUrl.value = "";
+      els.paperFile.value = "";
+      persist();
+      renderPaper(project);
+      toast("Paper cleared.");
+    }
+
+    function setBusy(next) {
+      busy = next;
+      els.ask.disabled = next;
+      els.meeting.disabled = next;
+      els.thai.disabled = next;
+      els.mobileThai.disabled = next;
+      els.mobileAsk.disabled = next;
+      els.ask.textContent = next ? "Asking..." : "Ask AI";
+      els.meeting.textContent = next ? "Meeting..." : "Meet Agents";
+      els.thai.textContent = next ? "..." : "Thai";
+      els.mobileAsk.textContent = next ? "Asking..." : "Ask AI";
+      els.status.textContent = next ? "AI working" : "Local notes";
+    }
+
+    function setOutput(text) {
+      const project = activeProject();
+      els.inviteStrip.classList.toggle("visible", Boolean(project?.activeFollowup));
+      if (!text) {
+        if (project) {
+          project.activeFollowup = "";
+          project.activeContext = "";
+        }
+        els.inviteStrip.classList.remove("visible");
+        els.response.innerHTML = `
+          <div class="placeholder">
+            <div class="protocol-line"><strong>1. Capture</strong><span>Write a de-identified topic or paste working notes.</span></div>
+            <div class="protocol-line"><strong>2. Choose</strong><span>Select an agent for literature, research question, design, ethics, stats, writing, de-ID, or summary.</span></div>
+            <div class="protocol-line"><strong>3. Ask</strong><span>Send the request. The AI key is used only by the Cloudflare Function.</span></div>
+          </div>`;
+        return;
+      }
+      els.response.textContent = text;
+    }
+
+    async function inviteFollowup(event) {
+      const button = event.target.closest("[data-invite]");
+      if (!button || busy) return;
+      const project = activeProject();
+      if (!project.activeFollowup) {
+        toast("No active follow-up question yet.");
+        return;
+      }
+      const agent = button.dataset.invite;
+      setBusy(true);
+      try {
+        const res = await fetch("/api/followup", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            agent,
+            mode: responseMode,
+            followupQuestion: project.activeFollowup,
+            context: project.activeContext || project.lastOutput || "",
+            customPrompt: customPromptFor(agent)
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Follow-up failed.");
+        const addition = `\n\n## ${data.label} Invited Answer\n${data.output}`;
+        project.lastOutput = `${project.lastOutput || els.response.innerText}${addition}`;
+        project.activeContext = project.lastOutput.slice(0, 4500);
+        project.history = project.history || [];
+        project.history.push({
+          agent,
+          mode: responseMode,
+          output: data.output,
+          createdAt: new Date().toISOString()
+        });
+        persist();
+        setOutput(project.lastOutput);
+        renderHistory();
+        toast(`${data.label} answered.`);
+      } catch (error) {
+        toast(error.message);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function copyOutput() {
+      const text = els.response.innerText.trim();
+      if (!text) return;
+      await navigator.clipboard.writeText(text);
+      toast("Output copied.");
+    }
+
+    async function translateThai() {
+      if (busy) return;
+      const text = els.response.innerText.trim();
+      if (!text || text.startsWith("1. Capture")) {
+        toast("No result to translate.");
+        return;
+      }
+      const project = activeProject();
+      setBusy(true);
+      setOutput("Translating to Thai...\n\nUsing OpenRouter through the Cloudflare Function.");
+      try {
+        const res = await fetch("/api/translate-thai", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ text })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Thai translation failed.");
+        project.lastOutput = data.output;
+        project.history = project.history || [];
+        project.history.push({
+          agent: "thai",
+          mode: responseMode,
+          output: data.output,
+          createdAt: new Date().toISOString()
+        });
+        persist();
+        setOutput(data.output);
+        renderHistory();
+        toast("Translated to Thai.");
+      } catch (error) {
+        setOutput(text);
+        toast(error.message);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    function exportMarkdown() {
+      saveProject(false);
+      const project = activeProject();
+      const history = (project.history || []).map(item => (
+        `## ${agentName(item.agent)} - ${new Date(item.createdAt).toLocaleString()}\n\n${item.output}`
+      )).join("\n\n---\n\n");
+      const markdown = [
+        `# ${project.title}`,
+        "",
+        `Journal style: ${project.journal}`,
+        "",
+        "## Topic",
+        project.topic || "_No topic saved._",
+        "",
+        "## AI History",
+        history || "_No AI history yet._"
+      ].join("\n");
+      const blob = new Blob([markdown], { type: "text/markdown" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${slug(project.title)}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast("Markdown exported.");
+    }
+
+    function clearInputs() {
+      els.question.value = "";
+      setOutput("");
+      toast("Question and output cleared.");
+    }
+
+    function resetHistory() {
+      const project = activeProject();
+      project.history = [];
+      project.lastOutput = "";
+      persist();
+      setOutput("");
+      renderHistory();
+      toast("History reset for this project.");
+    }
+
+    function loadSample() {
+      els.title.value = "AML MRD pilot";
+      els.topic.value = "De-identified idea: adult AML patients after induction therapy, exploring whether measurable residual disease status predicts relapse-free survival in a retrospective cohort.";
+      els.question.value = "Help me turn this into a feasible retrospective research question and study design.";
+      workspaceMode = "research";
+      activeAgent = "question";
+      responseMode = "short";
+      saveProject(false);
+      renderWorkspaceMode();
+      renderAgents();
+      renderModes();
+      els.activeLabel.textContent = `${agentName(activeAgent)} / ${modeName(responseMode)}`;
+      toast("Sample loaded.");
+    }
+
+    function agentName(id) {
+      if (id === "meeting") return "Agent Meeting";
+      if (id === "thai") return "Thai Translation";
+      const allAgents = [...agentSets.research, ...agentSets.journal];
+      return (allAgents.find(agent => agent[0] === id) || currentAgents()[0])[1];
+    }
+
+    function agentProfileLine(id) {
+      const profile = agentProfiles[id] || { model: "OpenRouter", character: "compact research helper" };
+      const custom = customPromptFor(id) ? " · custom prompt" : "";
+      return `${profile.model} · ${profile.character}${custom}`;
+    }
+
+    function currentAgents() {
+      return agentSets[workspaceMode] || agentSets.research;
+    }
+
+    function defaultAgent(mode) {
+      return mode === "journal" ? "journalclub" : "summary";
+    }
+
+    function defaultMeetingAgents(mode) {
+      return mode === "journal" ? ["journalclub", "methods", "stats"] : ["question", "design", "stats"];
+    }
+
+    function selectedMeetingAgents() {
+      return Array.from(els.meetingAgents.querySelectorAll("input:checked"))
+        .map(input => input.value)
+        .slice(0, 4);
+    }
+
+    function formatMeetingOutput(data) {
+      const turns = (data.turns || []).map(turn => `## ${turn.label}\n${turn.output}`).join("\n\n");
+      const memoryLine = data.memory_enabled
+        ? "Memory: compact Turso memory updated."
+        : `Memory: local only. ${data.memory_warning || "Add TURSO_URL to persist compact memory."}`;
+      const activeBlock = data.active
+        ? [
+            "",
+            "## Active Follow-up Question",
+            data.active.question || "",
+            "",
+            ...(data.active.answers || []).map(answer => `## ${answer.label} Active Answer\n${answer.output}`),
+            "",
+            "Invite more: [Watson] [Chen] [Mimi] [Osler] [Perplexity]"
+          ].join("\n")
+        : "";
+      return [
+        "# Agent Meeting",
+        memoryLine,
+        "",
+        turns,
+        "",
+        `## ${data.synthesis?.label || finalSynthesizerName()} ${workspaceMode === "research" ? "Research Decision" : "Synthesis"}`,
+        data.synthesis?.output || "",
+        activeBlock
+      ].join("\n");
+    }
+
+    function finalSynthesizerName() {
+      return workspaceMode === "research" ? "Professor Fisher" : "Professor Neo";
+    }
+
+    function modeName(id) {
+      return (responseModes.find(mode => mode[0] === id) || responseModes[0])[1];
+    }
+
+    function slug(value) {
+      return String(value || "research-note").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "research-note";
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, char => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+      })[char]);
+    }
+
+    let toastTimer;
+    function toast(message) {
+      els.toast.textContent = message;
+      els.toast.classList.remove("hidden");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => els.toast.classList.add("hidden"), 2600);
+    }
+  </script>
+</body>
+</html>
