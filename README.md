@@ -99,6 +99,8 @@ Journal Club mode includes shared rooms when Turso is configured.
   `Meet Agents`.
 - The meeting prompt includes the latest compact room discussion.
 - The final AI meeting output is saved back to the room for everyone.
+- Only admin sessions can create or delete rooms.
+- Rooms auto-expire after 30 days of inactivity on the next room API request.
 
 Rooms store compact comments and AI outputs only. They should not be used for
 patient identifiers or private clinical records.

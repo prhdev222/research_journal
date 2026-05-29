@@ -66,3 +66,5 @@ CREATE TABLE IF NOT EXISTS room_outputs (
   content TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
+
+-- Rooms older than 30 days are deleted by the Cloudflare Function on the next room API request.

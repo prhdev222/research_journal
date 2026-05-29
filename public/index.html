@@ -864,6 +864,7 @@
             <button class="secondary" id="joinRoomBtn" type="button">Join</button>
             <button class="primary" id="createRoomBtn" type="button">Create</button>
           </div>
+          <button class="secondary danger hidden" id="deleteRoomBtn" type="button">Delete room</button>
           <div class="room-card" id="roomMeta">
             <span>No shared room joined.</span>
           </div>
@@ -1081,6 +1082,7 @@
     let responseMode = state.responseMode || "short";
     let busy = false;
     let roomPollTimer = null;
+    let sessionRole = "user";
 
     const els = {
       title: document.getElementById("titleInput"),
@@ -1158,9 +1160,11 @@
     document.getElementById("joinRoomBtn").addEventListener("click", joinRoom);
     document.getElementById("syncRoomBtn").addEventListener("click", syncRoom);
     document.getElementById("postRoomBtn").addEventListener("click", postRoomMessage);
+    document.getElementById("deleteRoomBtn").addEventListener("click", deleteRoom);
     document.getElementById("inviteStrip").addEventListener("click", inviteFollowup);
 
     render();
+    loadSession();
     startRoomPolling();
 
     function loadState() {
@@ -1652,6 +1656,7 @@
       if (!project.roomCode || !room) {
         els.roomMeta.innerHTML = `<span>No shared room joined.</span>`;
         els.roomFeed.innerHTML = `<p class="project-topic">Create or join a room to share comments with journal club members.</p>`;
+        document.getElementById("deleteRoomBtn").classList.add("hidden");
         return;
       }
       els.roomMeta.innerHTML = [
@@ -1688,10 +1693,24 @@
         `).join("")
         : `<p class="project-topic">No room messages yet.</p>`;
       els.roomFeed.scrollTop = els.roomFeed.scrollHeight;
+      document.getElementById("deleteRoomBtn").classList.toggle("hidden", sessionRole !== "admin" || !project.roomCode);
+    }
+
+    async function loadSession() {
+      try {
+        const res = await fetch("/api/session");
+        const data = await res.json();
+        if (res.ok) sessionRole = data.role || "user";
+      } catch {}
+      renderRoom(activeProject());
     }
 
     async function createRoom() {
       if (busy) return;
+      if (sessionRole !== "admin") {
+        toast("Only admin can create rooms.");
+        return;
+      }
       saveProject(false);
       const project = activeProject();
       setBusy(true);
@@ -1733,6 +1752,37 @@
         persist();
         render();
         toast(`Joined room ${activeProject().roomCode}.`);
+      } catch (error) {
+        toast(error.message);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function deleteRoom() {
+      if (busy) return;
+      const project = activeProject();
+      const code = normalizeRoomCode(project.roomCode || els.roomCode.value);
+      if (sessionRole !== "admin") {
+        toast("Only admin can delete rooms.");
+        return;
+      }
+      if (!code) {
+        toast("No room selected.");
+        return;
+      }
+      if (!confirm(`Delete room ${code}? This removes comments and AI outputs from Turso.`)) return;
+      setBusy(true);
+      try {
+        await roomRequest({ action: "delete", code });
+        project.roomCode = "";
+        project.room = null;
+        project.roomMessages = [];
+        project.roomOutputs = [];
+        els.roomCode.value = "";
+        persist();
+        renderRoom(project);
+        toast(`Room ${code} deleted.`);
       } catch (error) {
         toast(error.message);
       } finally {

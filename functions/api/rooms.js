@@ -1,8 +1,10 @@
 import { clean, json } from "../_lib/http.js";
+import { verifySession } from "../_lib/auth.js";
 import {
   addRoomMessage,
   addRoomOutput,
   createJournalRoom,
+  deleteJournalRoom,
   getDb,
   getJournalRoom,
   getRoomMessages,
@@ -37,6 +39,10 @@ export async function onRequestPost({ request, env }) {
     const db = getDb(env);
 
     if (action === "create") {
+      const session = await verifySession(env, request);
+      if (session.role !== "admin" && session.role !== "disabled") {
+        return json({ error: "Only admin can create rooms." }, 403);
+      }
       const code = normalizeCode(body.code) || createRoomCode();
       const room = await createJournalRoom(db, {
         code,
@@ -101,6 +107,17 @@ export async function onRequestPost({ request, env }) {
         messages: await getRoomMessages(db, code),
         outputs: await getRoomOutputs(db, code)
       });
+    }
+
+    if (action === "delete") {
+      const session = await verifySession(env, request);
+      if (session.role !== "admin" && session.role !== "disabled") {
+        return json({ error: "Only admin can delete rooms." }, 403);
+      }
+      const code = normalizeCode(body.code);
+      if (!code) return json({ error: "Missing room code." }, 400);
+      await deleteJournalRoom(db, code);
+      return json({ ok: true, code });
     }
 
     return json({ error: "Unknown room action." }, 400);

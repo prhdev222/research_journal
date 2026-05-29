@@ -232,6 +232,7 @@ export async function upsertProjectSummary(db, projectId, summary) {
 
 export async function createJournalRoom(db, room) {
   if (!db) return null;
+  await deleteExpiredRooms(db);
   const now = new Date().toISOString();
   await ensureMemorySchema(db);
   await execute(db, {
@@ -260,6 +261,7 @@ export async function createJournalRoom(db, room) {
 export async function getJournalRoom(db, code) {
   if (!db || !code) return null;
   await ensureMemorySchema(db);
+  await deleteExpiredRooms(db);
   const result = await execute(db, {
     sql: "SELECT code, title, paper_title, paper_url, paper_summary, created_by, created_at, updated_at FROM journal_rooms WHERE code = ?",
     args: [code]
@@ -269,6 +271,7 @@ export async function getJournalRoom(db, code) {
 
 export async function getRoomMessages(db, code) {
   if (!db || !code) return [];
+  await deleteExpiredRooms(db);
   const result = await execute(db, {
     sql: `SELECT id, author, kind, content, created_at
       FROM room_messages
@@ -283,6 +286,7 @@ export async function getRoomMessages(db, code) {
 export async function addRoomMessage(db, code, message) {
   if (!db || !code || !message?.content) return null;
   await ensureMemorySchema(db);
+  await deleteExpiredRooms(db);
   const row = {
     id: crypto.randomUUID(),
     author: message.author || "Member",
@@ -303,6 +307,7 @@ export async function addRoomMessage(db, code, message) {
 
 export async function getRoomOutputs(db, code) {
   if (!db || !code) return [];
+  await deleteExpiredRooms(db);
   const result = await execute(db, {
     sql: `SELECT id, label, content, created_at
       FROM room_outputs
@@ -317,6 +322,7 @@ export async function getRoomOutputs(db, code) {
 export async function addRoomOutput(db, code, output) {
   if (!db || !code || !output?.content) return null;
   await ensureMemorySchema(db);
+  await deleteExpiredRooms(db);
   const row = {
     id: crypto.randomUUID(),
     label: output.label || "AI Meeting",
@@ -332,4 +338,24 @@ export async function addRoomOutput(db, code, output) {
     args: [row.created_at, code]
   });
   return row;
+}
+
+export async function deleteJournalRoom(db, code) {
+  if (!db || !code) return;
+  await ensureMemorySchema(db);
+  await execute(db, { sql: "DELETE FROM room_messages WHERE room_code = ?", args: [code] });
+  await execute(db, { sql: "DELETE FROM room_outputs WHERE room_code = ?", args: [code] });
+  await execute(db, { sql: "DELETE FROM journal_rooms WHERE code = ?", args: [code] });
+}
+
+export async function deleteExpiredRooms(db, days = 30) {
+  if (!db) return;
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const result = await execute(db, {
+    sql: "SELECT code FROM journal_rooms WHERE updated_at < ?",
+    args: [cutoff]
+  });
+  for (const row of result.rows || []) {
+    await deleteJournalRoom(db, row.code);
+  }
 }
