@@ -130,6 +130,16 @@
       border-radius: 50%;
       background: var(--green);
     }
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .top-actions .secondary {
+      min-height: 36px;
+      padding: 0 10px;
+      font-size: 12px;
+    }
 
     .workspace {
       display: grid;
@@ -717,9 +727,12 @@
           <p class="subtitle">Cloudflare Pages · mobile research workbench</p>
         </div>
       </div>
-      <div class="status-pill" title="API key stays inside Cloudflare Functions">
-        <span class="status-dot"></span>
-        <span id="statusText">Local notes</span>
+      <div class="top-actions">
+        <div class="status-pill" title="API key stays inside Cloudflare Functions">
+          <span class="status-dot"></span>
+          <span id="statusText">Local notes</span>
+        </div>
+        <button class="secondary" id="logoutBtn" type="button">Logout</button>
       </div>
     </header>
 
@@ -1039,6 +1052,7 @@
     document.getElementById("mobileCopyBtn").addEventListener("click", copyOutput);
     document.getElementById("thaiBtn").addEventListener("click", translateThai);
     document.getElementById("mobileThaiBtn").addEventListener("click", translateThai);
+    document.getElementById("logoutBtn").addEventListener("click", logout);
     document.getElementById("exportBtn").addEventListener("click", exportMarkdown);
     document.getElementById("promptBtn").addEventListener("click", openPromptModal);
     document.getElementById("closePromptBtn").addEventListener("click", closePromptModal);
@@ -1661,6 +1675,14 @@
         toast(error.message);
       } finally {
         setBusy(false);
+      }
+    }
+
+    async function logout() {
+      try {
+        await fetch("/api/logout", { method: "POST" });
+      } finally {
+        location.reload();
       }
     }
 

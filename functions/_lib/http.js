@@ -3,10 +3,10 @@ export const JSON_HEADERS = {
   "cache-control": "no-store"
 };
 
-export function json(payload, status = 200) {
+export function json(payload, status = 200, headers = {}) {
   return new Response(JSON.stringify(payload), {
     status,
-    headers: JSON_HEADERS
+    headers: { ...JSON_HEADERS, ...headers }
   });
 }
 

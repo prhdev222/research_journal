@@ -15,8 +15,43 @@ The copied `backend/` and `frontend/` folders are kept as reference from the ori
 
 - Do not put `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, or any provider key in browser JavaScript.
 - Set provider keys as Cloudflare Pages secrets.
+- Set `ACCESS_CODES`, `ADMIN_CODE`, and `AUTH_SECRET` as Cloudflare Pages secrets to protect the app before users can spend AI tokens.
 - Keep patient identifiers out of prompts and local notes.
 - This app stores projects and history in browser `localStorage`, not a server database.
+
+## Access Codes
+
+The app has a Cloudflare Functions access gate. When `ACCESS_CODES` or
+`ADMIN_CODE` is configured, every page and API route requires login first.
+
+- `ACCESS_CODES` - comma-separated user codes that the admin can share.
+- `ADMIN_CODE` - private admin code. It logs in with admin role.
+- `AUTH_SECRET` - random signing secret for the HttpOnly session cookie.
+
+Example local `.dev.vars`:
+
+```bash
+ACCESS_CODES=journal-alpha-2026,journal-beta-2026
+ADMIN_CODE=admin-long-random-code
+AUTH_SECRET=use-a-long-random-string
+```
+
+Cloudflare secrets:
+
+```bash
+npx wrangler pages secret put ACCESS_CODES --project-name research-assistant-cloudflare
+npx wrangler pages secret put ADMIN_CODE --project-name research-assistant-cloudflare
+npx wrangler pages secret put AUTH_SECRET --project-name research-assistant-cloudflare
+```
+
+Generate a strong `AUTH_SECRET` locally:
+
+```bash
+openssl rand -hex 32
+```
+
+Do not commit real access codes. Change `ACCESS_CODES` in Cloudflare when you
+want to rotate who can enter the app.
 
 ## Token Saving
 
