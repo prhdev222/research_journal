@@ -1,15 +1,13 @@
-import { createClient } from "@libsql/client/web";
-
 export function hasTurso(env) {
   return Boolean(env.TURSO_URL);
 }
 
 export function getDb(env) {
   if (!env.TURSO_URL) return null;
-  return createClient({
-    url: env.TURSO_URL,
-    authToken: env.TURSO_AUTH_TOKEN || undefined
-  });
+  return {
+    url: toHttpUrl(env.TURSO_URL),
+    authToken: env.TURSO_AUTH_TOKEN || ""
+  };
 }
 
 export async function ensureMemorySchema(db) {
@@ -54,14 +52,72 @@ export async function ensureMemorySchema(db) {
   ];
 
   for (const sql of statements) {
-    await db.execute(sql);
+    await execute(db, sql);
   }
+}
+
+async function execute(db, statement) {
+  if (!db) return { rows: [] };
+  const sql = typeof statement === "string" ? statement : statement.sql;
+  const args = typeof statement === "string" ? [] : statement.args || [];
+  const response = await fetch(`${db.url}/v2/pipeline`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${db.authToken}`
+    },
+    body: JSON.stringify({
+      requests: [
+        {
+          type: "execute",
+          stmt: {
+            sql,
+            args: args.map(toTursoArg)
+          }
+        },
+        { type: "close" }
+      ]
+    })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.message || data.error || `Turso request failed (${response.status}).`);
+  }
+  return normalizeTursoResult(data);
+}
+
+function toHttpUrl(url) {
+  return String(url || "").replace(/^libsql:\/\//, "https://").replace(/\/+$/, "");
+}
+
+function toTursoArg(value) {
+  if (value === null || value === undefined) return { type: "null" };
+  if (typeof value === "number" && Number.isInteger(value)) return { type: "integer", value: String(value) };
+  if (typeof value === "number") return { type: "float", value };
+  return { type: "text", value: String(value) };
+}
+
+function normalizeTursoResult(data) {
+  const result = data.result || data.results?.[0]?.result || data.results?.[0]?.response?.result || data.results?.[0];
+  const cols = result?.cols || [];
+  const rows = (result?.rows || []).map((row) => {
+    const values = Array.isArray(row) ? row : row.values || [];
+    return Object.fromEntries(cols.map((col, index) => [col.name || col, fromTursoValue(values[index])]));
+  });
+  return { rows };
+}
+
+function fromTursoValue(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "object") return value;
+  if (value.type === "null") return null;
+  return value.value ?? value.base64 ?? null;
 }
 
 export async function upsertProject(db, project) {
   if (!db) return;
   const now = new Date().toISOString();
-  await db.execute({
+  await execute(db, {
     sql: `INSERT INTO projects (id, title, mode, topic, journal, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
@@ -84,7 +140,7 @@ export async function upsertProject(db, project) {
 
 export async function getProjectSummary(db, projectId) {
   if (!db) return "";
-  const result = await db.execute({
+  const result = await execute(db, {
     sql: "SELECT summary FROM project_summaries WHERE project_id = ?",
     args: [projectId]
   });
@@ -95,7 +151,7 @@ export async function getAgentMemories(db, projectId, agentNames) {
   if (!db || !agentNames.length) return {};
   const memories = {};
   for (const agentName of agentNames) {
-    const result = await db.execute({
+    const result = await execute(db, {
       sql: "SELECT memory_summary FROM agent_memories WHERE project_id = ? AND agent_name = ?",
       args: [projectId, agentName]
     });
@@ -108,7 +164,7 @@ export async function createMeeting(db, projectId, title) {
   if (!db) return null;
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
-  await db.execute({
+  await execute(db, {
     sql: "INSERT INTO meetings (id, project_id, title, created_at) VALUES (?, ?, ?, ?)",
     args: [id, projectId, title || "Agent meeting", now]
   });
@@ -117,7 +173,7 @@ export async function createMeeting(db, projectId, title) {
 
 export async function saveMeetingTurn(db, meetingId, agentName, role, content) {
   if (!db || !meetingId || !content) return;
-  await db.execute({
+  await execute(db, {
     sql: "INSERT INTO meeting_turns (id, meeting_id, agent_name, role, content, created_at) VALUES (?, ?, ?, ?, ?, ?)",
     args: [crypto.randomUUID(), meetingId, agentName, role, content.slice(0, 5000), new Date().toISOString()]
   });
@@ -126,7 +182,7 @@ export async function saveMeetingTurn(db, meetingId, agentName, role, content) {
 export async function upsertAgentMemory(db, projectId, agentName, memorySummary) {
   if (!db || !memorySummary) return;
   const now = new Date().toISOString();
-  await db.execute({
+  await execute(db, {
     sql: `INSERT INTO agent_memories (id, project_id, agent_name, memory_summary, updated_at)
       VALUES (?, ?, ?, ?, ?)
       ON CONFLICT(project_id, agent_name) DO UPDATE SET
@@ -139,7 +195,7 @@ export async function upsertAgentMemory(db, projectId, agentName, memorySummary)
 export async function upsertProjectSummary(db, projectId, summary) {
   if (!db || !summary) return;
   const now = new Date().toISOString();
-  await db.execute({
+  await execute(db, {
     sql: `INSERT INTO project_summaries (project_id, summary, updated_at)
       VALUES (?, ?, ?)
       ON CONFLICT(project_id) DO UPDATE SET
