@@ -558,6 +558,79 @@
       overflow: auto;
       background: linear-gradient(180deg, rgba(255,253,247,0.42), rgba(255,253,247,0));
     }
+    .meeting-view {
+      display: grid;
+      gap: 12px;
+      white-space: normal;
+    }
+    .meeting-meta {
+      padding: 10px;
+      border: 1px solid rgba(20, 107, 114, 0.16);
+      border-radius: var(--radius);
+      background: rgba(20, 107, 114, 0.06);
+      color: var(--muted-ink);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .answer-card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--paper-raised);
+    }
+    .answer-card.agent-0 { background: #fffaf0; }
+    .answer-card.agent-1 { background: #f2fbf8; }
+    .answer-card.agent-2 { background: #f8f4ff; }
+    .answer-card.agent-3 { background: #fff4f4; }
+    .answer-card.synthesis { background: #f0fbff; border-color: rgba(20, 107, 114, 0.24); }
+    .answer-card.followup { background: #fbf8ef; }
+    .answer-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: flex-start;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 253, 247, 0.52);
+    }
+    .answer-name {
+      color: var(--graphite);
+      font-size: 13px;
+      font-weight: 900;
+      line-height: 1.2;
+    }
+    .answer-model {
+      margin-top: 2px;
+      color: var(--faint-ink);
+      font-size: 10.5px;
+      line-height: 1.2;
+    }
+    .answer-tag {
+      flex: 0 0 auto;
+      padding: 4px 7px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted-ink);
+      background: rgba(255, 255, 255, 0.54);
+      font-size: 10px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+    .answer-body {
+      padding: 12px;
+      white-space: pre-wrap;
+      line-height: 1.55;
+      font-size: 14px;
+    }
+    .meeting-tools {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .meeting-tools .secondary {
+      min-height: 38px;
+      font-size: 12px;
+    }
     .invite-strip {
       display: none;
       gap: 8px;
@@ -1229,6 +1302,7 @@
           topic: "",
           journal: "generic",
           createdAt: new Date().toISOString(),
+          lastMeetingData: null,
           history: []
         }]
       };
@@ -1560,6 +1634,7 @@
         if (!res.ok) throw new Error(data.error || "Meeting failed.");
         const output = formatMeetingOutput(data);
         project.lastOutput = output;
+        project.lastMeetingData = data;
         project.activeFollowup = data.active?.question || "";
         project.activeContext = output.slice(0, 4500);
         project.history = project.history || [];
@@ -1570,7 +1645,7 @@
           createdAt: new Date().toISOString()
         });
         persist();
-        setOutput(output);
+        renderMeetingOutput(data, output);
         renderHistory();
         if (project.roomCode) await saveRoomOutput(output);
         toast(data.memory_enabled ? "Meeting saved with compact Turso memory." : "Meeting complete. Turso memory is not configured.");
@@ -1981,6 +2056,73 @@
       els.status.textContent = next ? "AI working" : "Local notes";
     }
 
+    function renderMeetingOutput(data, plainText) {
+      const memoryLine = data.memory_enabled
+        ? "Memory: compact Turso memory updated."
+        : `Memory: local only. ${data.memory_warning || "Add TURSO_URL to persist compact memory."}`;
+      const synthesis = data.synthesis || {};
+      const active = data.active || null;
+      const turnCards = (data.turns || []).map((turn, index) => answerCardHtml({
+        label: turn.label,
+        model: turn.model,
+        provider: turn.provider,
+        tag: "Agent answer",
+        output: turn.output,
+        className: `agent-${index % 4}`
+      })).join("");
+      const activeHtml = active
+        ? [
+            answerCardHtml({
+              label: "Active Follow-up Question",
+              tag: "Question",
+              output: active.question || "",
+              className: "followup"
+            }),
+            ...(active.answers || []).map(answer => answerCardHtml({
+              label: answer.label,
+              model: answer.model,
+              provider: answer.provider,
+              tag: "Active answer",
+              output: answer.output,
+              className: "followup"
+            }))
+          ].join("")
+        : "";
+      els.response.innerHTML = `
+        <div class="meeting-view" data-plain="${escapeAttr(plainText)}">
+          <div class="meeting-meta">${escapeHtml(memoryLine)}</div>
+          ${turnCards}
+          ${answerCardHtml({
+            label: synthesis.label || finalSynthesizerName(),
+            model: synthesis.model,
+            provider: synthesis.provider,
+            tag: workspaceMode === "research" ? "Professor synthesis" : "Professor summary",
+            output: synthesis.output || "",
+            className: "synthesis"
+          })}
+          <div class="meeting-tools">
+            <button class="secondary" type="button" id="professorSummaryBtn">Professor summary</button>
+          </div>
+          ${activeHtml}
+        </div>`;
+      document.getElementById("professorSummaryBtn")?.addEventListener("click", askProfessorSummary);
+    }
+
+    function answerCardHtml({ label, model = "", provider = "", tag, output, className }) {
+      const modelLine = [provider, model].filter(Boolean).join(" · ");
+      return `
+        <article class="answer-card ${className || ""}">
+          <div class="answer-head">
+            <div>
+              <div class="answer-name">${escapeHtml(label || "Agent")}</div>
+              ${modelLine ? `<div class="answer-model">${escapeHtml(modelLine)}</div>` : ""}
+            </div>
+            <span class="answer-tag">${escapeHtml(tag || "Answer")}</span>
+          </div>
+          <div class="answer-body">${escapeHtml(output || "")}</div>
+        </article>`;
+    }
+
     function setOutput(text) {
       const project = activeProject();
       els.inviteStrip.classList.toggle("visible", Boolean(project?.activeFollowup));
@@ -1996,6 +2138,10 @@
             <div class="protocol-line"><strong>2. Choose</strong><span>Select an agent for literature, research question, design, ethics, stats, writing, de-ID, or summary.</span></div>
             <div class="protocol-line"><strong>3. Ask</strong><span>Send the request. The AI key is used only by the Cloudflare Function.</span></div>
           </div>`;
+        return;
+      }
+      if (project?.lastMeetingData && text === project.lastOutput) {
+        renderMeetingOutput(project.lastMeetingData, text);
         return;
       }
       els.response.textContent = text;
@@ -2047,15 +2193,75 @@
     }
 
     async function copyOutput() {
-      const text = els.response.innerText.trim();
+      const text = currentOutputText();
       if (!text) return;
       await navigator.clipboard.writeText(text);
       toast("Output copied.");
     }
 
+    function currentOutputText() {
+      const meetingPlain = els.response.querySelector(".meeting-view")?.dataset.plain;
+      return (meetingPlain || els.response.innerText || "").trim();
+    }
+
+    async function askProfessorSummary() {
+      if (busy) return;
+      const project = activeProject();
+      const data = project.lastMeetingData;
+      if (!data?.synthesis?.output) {
+        toast("No meeting synthesis to summarize yet.");
+        return;
+      }
+      const agent = workspaceMode === "research" ? "fisher" : "neo";
+      const prompt = [
+        "The team answers are difficult to read.",
+        "Please summarize the whole meeting again in clearer language.",
+        "Use: Bottom line, Why, What each agent contributed, Remaining uncertainty, Next action.",
+        "Keep it concise and practical.",
+        "",
+        formatMeetingOutput(data)
+      ].join("\n");
+      setBusy(true);
+      try {
+        const res = await fetch("/api/ask", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            agent,
+            mode: responseMode,
+            topic: project.topic || project.paperTitle || "Journal club meeting",
+            journal: project.journal,
+            question: prompt,
+            customPrompt: customPromptFor(agent)
+          })
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error || "Professor summary failed.");
+        const addition = `\n\n## ${agentName(agent)} Clear Professor Summary\n${result.output}`;
+        const output = `${project.lastOutput || currentOutputText()}${addition}`;
+        project.lastOutput = output;
+        project.lastMeetingData = null;
+        project.history = project.history || [];
+        project.history.push({
+          agent,
+          mode: responseMode,
+          output: result.output,
+          createdAt: new Date().toISOString()
+        });
+        persist();
+        setOutput(output);
+        renderHistory();
+        toast(`${agentName(agent)} summarized again.`);
+      } catch (error) {
+        toast(error.message);
+      } finally {
+        setBusy(false);
+      }
+    }
+
     async function translateOutput(target) {
       if (busy) return;
-      const text = els.response.innerText.trim();
+      const text = currentOutputText();
       if (!text || text.startsWith("1. Capture")) {
         toast("No result to translate.");
         return;
@@ -2238,6 +2444,10 @@
         '"': "&quot;",
         "'": "&#39;"
       })[char]);
+    }
+
+    function escapeAttr(value) {
+      return escapeHtml(value).replace(/`/g, "&#96;");
     }
 
     let toastTimer;
