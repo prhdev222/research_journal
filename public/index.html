@@ -959,7 +959,10 @@
               <option value="Annals of Hematology">Annals of Hematology</option>
             </select>
           </label>
-          <button class="primary" id="saveProjectBtn" type="button">Save project</button>
+          <div class="button-row">
+            <button class="primary" id="saveProjectBtn" type="button">Save project</button>
+            <button class="secondary danger" id="deleteProjectBtn" type="button">Delete</button>
+          </div>
           <div class="project-list" id="projectList"></div>
         </div>
       </section>
@@ -1348,6 +1351,7 @@
     document.getElementById("journalModeBtn").addEventListener("click", () => setWorkspaceMode("journal"));
     document.getElementById("newProjectBtn").addEventListener("click", newProject);
     document.getElementById("saveProjectBtn").addEventListener("click", saveProject);
+    document.getElementById("deleteProjectBtn").addEventListener("click", deleteProject);
     document.getElementById("mobileSaveBtn").addEventListener("click", saveProject);
     document.getElementById("askBtn").addEventListener("click", askAI);
     document.getElementById("meetingBtn").addEventListener("click", meetAgents);
@@ -1425,6 +1429,25 @@
 
     function activeProject() {
       return state.projects.find(project => project.id === state.activeProjectId) || state.projects[0];
+    }
+
+    function blankProject() {
+      return {
+        id: crypto.randomUUID(),
+        title: "Untitled research note",
+        topic: "",
+        journal: "generic",
+        createdAt: new Date().toISOString(),
+        paperUrl: "",
+        paperTitle: "",
+        paperText: "",
+        roomCode: "",
+        room: null,
+        roomMessages: [],
+        roomOutputs: [],
+        customPrompts: {},
+        history: []
+      };
     }
 
     function render() {
@@ -1576,6 +1599,23 @@
       if (showMessage) toast("Project saved on this device.");
     }
 
+    function deleteProject() {
+      const project = activeProject();
+      if (!project) return;
+      const title = project.title || "Untitled research note";
+      if (!confirm(`Delete project "${title}" from this browser?\n\nThis does not delete shared Journal Club rooms in Turso.`)) return;
+      state.projects = state.projects.filter(item => item.id !== project.id);
+      if (!state.projects.length) {
+        state.projects = [blankProject()];
+      }
+      state.activeProjectId = state.projects[0].id;
+      persist();
+      els.question.value = "";
+      setOutput("");
+      render();
+      toast("Project deleted from this browser.");
+    }
+
     function openPromptModal() {
       renderPromptModal();
       els.promptModal.classList.remove("hidden");
@@ -1668,24 +1708,9 @@
 
     function newProject() {
       saveProject(false);
-      const id = crypto.randomUUID();
-      state.projects.unshift({
-        id,
-        title: "Untitled research note",
-        topic: "",
-        journal: "generic",
-        createdAt: new Date().toISOString(),
-        paperUrl: "",
-        paperTitle: "",
-        paperText: "",
-        roomCode: "",
-        room: null,
-        roomMessages: [],
-        roomOutputs: [],
-        customPrompts: {},
-        history: []
-      });
-      state.activeProjectId = id;
+      const project = blankProject();
+      state.projects.unshift(project);
+      state.activeProjectId = project.id;
       persist();
       els.question.value = "";
       setOutput("");
