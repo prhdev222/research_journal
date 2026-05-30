@@ -1615,6 +1615,39 @@
         prompt: "Please keep every agent answer very short. Fisher should state feasibility and the practical next step. Neo should give senior research interpretation. Osler should only comment if the decision is important, then give the final concise decision summary. Use bullet points only. Maximum 5 bullets total. End with: Go / Revise / Stop."
       },
       {
+        mode: "research",
+        title: "Case Report — Writing Guide",
+        goal: "Start here when you have an interesting case and want to know how to write it up.",
+        agents: ["casereport"],
+        modeId: "deep",
+        useMeeting: false,
+        caseSection: "sequence",
+        caseInputMode: "write",
+        prompt: "I have an interesting/rare hematology case I want to write up as a case report. Show me the CARE writing sequence — what to write first, the pattern for each section, and what to include. Give me a practical step-by-step guide I can follow."
+      },
+      {
+        mode: "research",
+        title: "Case Report — Thai Notes → Draft",
+        goal: "Paste Thai clinical notes and get a structured English case presentation.",
+        agents: ["casereport"],
+        modeId: "deep",
+        useMeeting: false,
+        caseSection: "presentation",
+        caseInputMode: "translate",
+        prompt: "ใส่ notes ภาษาไทยในช่อง notes หรือถามเพิ่มที่นี่ — Case Writer จะแปลและ structure เป็น English Case Presentation ตาม CARE guideline"
+      },
+      {
+        mode: "research",
+        title: "Case Report — Professor Review",
+        goal: "Get professor-style feedback on your case report draft.",
+        agents: ["casereport", "neo", "deid"],
+        modeId: "normal",
+        useMeeting: true,
+        caseSection: "presentation",
+        caseInputMode: "review",
+        prompt: "Please review my case report draft. Case Writer should give section-by-section writing feedback and suggest improvements. Professor Neo should assess whether this case is publishable and what makes it worth reporting. De-ID should flag any patient privacy concerns."
+      },
+      {
         mode: "journal",
         title: "Journal Club Appraisal",
         goal: "Use after loading a paper or pasting abstract/results.",
@@ -2156,6 +2189,14 @@
       taskMode = sample.useMeeting ? "meeting" : "single";
       if (sample.mode === "journal") journalView = "paper";
       els.question.value = sample.prompt;
+      if (sample.caseSection) {
+        const caseSecEl = document.getElementById("caseSection");
+        if (caseSecEl) caseSecEl.value = sample.caseSection;
+      }
+      if (sample.caseInputMode) {
+        const modeEl = document.querySelector(`input[name="caseInputMode"][value="${sample.caseInputMode}"]`);
+        if (modeEl) modeEl.checked = true;
+      }
       persist();
       renderWorkspaceMode();
       renderAgents();
@@ -2164,6 +2205,7 @@
       renderTaskMode();
       setMeetingSelection(sample.agents);
       els.activeMeeting.checked = Boolean(sample.activeMeeting);
+      updateActiveLabel();
       closeWorkflowModal();
       toast(sample.useMeeting ? "Workflow loaded. Use Meet checked agents." : "Workflow loaded. Use Ask selected agent.");
     }
