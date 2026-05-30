@@ -5,15 +5,10 @@ export async function onRequestPost({ request, env }) {
   try {
     const body = await request.json();
     const text = clean(body.text, 18000);
+    const target = body.target === "en" ? "en" : "th";
     if (!text) return json({ error: "No text to translate." }, 400);
 
-    const instructions = [
-      "You are a careful Thai medical/research translator.",
-      "Translate the provided research or journal-club result into natural Thai.",
-      "Preserve headings, bullet structure, numbers, abbreviations, drug names, statistics, and citations.",
-      "Do not add new analysis. Do not remove uncertainty markers such as verify.",
-      "Use concise professional Thai suitable for a Thai physician/researcher."
-    ].join("\n");
+    const instructions = buildTranslationInstructions(target);
 
     const chunks = splitForTranslation(text);
     const outputs = [];
@@ -28,6 +23,7 @@ export async function onRequestPost({ request, env }) {
         instructions,
         input: [
           chunks.length > 1 ? `Part ${index + 1} of ${chunks.length}. Translate only this part.` : "",
+          `Target language: ${target === "en" ? "English" : "Thai"}.`,
           chunks[index]
         ]
           .filter(Boolean)
@@ -43,12 +39,34 @@ export async function onRequestPost({ request, env }) {
     return json({
       provider,
       model,
+      target,
       parts: chunks.length,
       output: outputs.join("\n\n")
     });
   } catch (error) {
-    return json({ error: error.message || "Thai translation failed." }, 500);
+    return json({ error: error.message || "Translation failed." }, 500);
   }
+}
+
+function buildTranslationInstructions(target) {
+  const shared = [
+    "You are a careful medical/research translator.",
+    "Preserve headings, bullet structure, numbers, abbreviations, drug names, statistics, and citations.",
+    "Do not add new analysis. Do not remove uncertainty markers such as verify.",
+    "Translate the full provided content. Do not summarize unless the source already summarizes."
+  ];
+  if (target === "en") {
+    return [
+      ...shared,
+      "Translate the provided research or journal-club result into clear professional English.",
+      "Use concise academic English suitable for physicians and researchers."
+    ].join("\n");
+  }
+  return [
+    ...shared,
+    "Translate the provided research or journal-club result into natural Thai.",
+    "Use concise professional Thai suitable for a Thai physician/researcher."
+  ].join("\n");
 }
 
 function splitForTranslation(text) {

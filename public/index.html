@@ -400,6 +400,11 @@
       grid-template-columns: 1fr 1fr;
       gap: 8px;
     }
+    .translate-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(52px, 1fr));
+      gap: 8px;
+    }
     .meeting-grid {
       display: grid;
       gap: 6px;
@@ -919,8 +924,9 @@
               PDPA-first: keep patient names, HN, phone, exact dates, and rare identifying combinations out of prompts.
             </div>
           </div>
-          <div class="button-row">
-            <button class="secondary" id="thaiBtn" type="button">Thai</button>
+          <div class="translate-row">
+            <button class="secondary" id="thaiBtn" type="button">TH</button>
+            <button class="secondary" id="englishBtn" type="button">EN</button>
             <button class="secondary" id="copyBtn" type="button">Copy</button>
           </div>
         </div>
@@ -991,6 +997,7 @@
     <button class="secondary" id="mobileSaveBtn" type="button" aria-label="Save project">S</button>
     <button class="primary" id="mobileAskBtn" type="button">Ask AI</button>
     <button class="secondary" id="mobileThaiBtn" type="button" aria-label="Translate Thai">TH</button>
+    <button class="secondary" id="mobileEnglishBtn" type="button" aria-label="Translate English">EN</button>
     <button class="secondary" id="mobileCopyBtn" type="button" aria-label="Copy output">C</button>
   </div>
 
@@ -1151,7 +1158,9 @@
       ask: document.getElementById("askBtn"),
       meeting: document.getElementById("meetingBtn"),
       thai: document.getElementById("thaiBtn"),
+      english: document.getElementById("englishBtn"),
       mobileThai: document.getElementById("mobileThaiBtn"),
+      mobileEnglish: document.getElementById("mobileEnglishBtn"),
       mobileAsk: document.getElementById("mobileAskBtn"),
       promptModal: document.getElementById("promptModal"),
       promptMeta: document.getElementById("promptMeta"),
@@ -1170,8 +1179,10 @@
     document.getElementById("mobileAskBtn").addEventListener("click", askAI);
     document.getElementById("copyBtn").addEventListener("click", copyOutput);
     document.getElementById("mobileCopyBtn").addEventListener("click", copyOutput);
-    document.getElementById("thaiBtn").addEventListener("click", translateThai);
-    document.getElementById("mobileThaiBtn").addEventListener("click", translateThai);
+    document.getElementById("thaiBtn").addEventListener("click", () => translateOutput("th"));
+    document.getElementById("englishBtn").addEventListener("click", () => translateOutput("en"));
+    document.getElementById("mobileThaiBtn").addEventListener("click", () => translateOutput("th"));
+    document.getElementById("mobileEnglishBtn").addEventListener("click", () => translateOutput("en"));
     document.getElementById("logoutBtn").addEventListener("click", logout);
     document.getElementById("exportBtn").addEventListener("click", exportMarkdown);
     document.getElementById("promptBtn").addEventListener("click", openPromptModal);
@@ -1958,11 +1969,14 @@
       els.ask.disabled = next;
       els.meeting.disabled = next;
       els.thai.disabled = next;
+      els.english.disabled = next;
       els.mobileThai.disabled = next;
+      els.mobileEnglish.disabled = next;
       els.mobileAsk.disabled = next;
       els.ask.textContent = next ? "Asking..." : "Ask AI";
       els.meeting.textContent = next ? "Meeting..." : "Meet Agents";
-      els.thai.textContent = next ? "..." : "Thai";
+      els.thai.textContent = next ? "..." : "TH";
+      els.english.textContent = next ? "..." : "EN";
       els.mobileAsk.textContent = next ? "Asking..." : "Ask AI";
       els.status.textContent = next ? "AI working" : "Local notes";
     }
@@ -2039,28 +2053,29 @@
       toast("Output copied.");
     }
 
-    async function translateThai() {
+    async function translateOutput(target) {
       if (busy) return;
       const text = els.response.innerText.trim();
       if (!text || text.startsWith("1. Capture")) {
         toast("No result to translate.");
         return;
       }
+      const language = target === "en" ? "English" : "Thai";
       const project = activeProject();
       setBusy(true);
-      setOutput("Translating to Thai...\n\nUsing OpenRouter through the Cloudflare Function.");
+      setOutput(`Translating to ${language}...\n\nUsing OpenRouter through the Cloudflare Function.`);
       try {
         const res = await fetch("/api/translate-thai", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ text })
+          body: JSON.stringify({ text, target })
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Thai translation failed.");
+        if (!res.ok) throw new Error(data.error || `${language} translation failed.`);
         project.lastOutput = data.output;
         project.history = project.history || [];
         project.history.push({
-          agent: "thai",
+          agent: target === "en" ? "english" : "thai",
           mode: responseMode,
           output: data.output,
           createdAt: new Date().toISOString()
@@ -2068,7 +2083,7 @@
         persist();
         setOutput(data.output);
         renderHistory();
-        toast("Translated to Thai.");
+        toast(`Translated to ${language}.`);
       } catch (error) {
         setOutput(text);
         toast(error.message);
@@ -2146,6 +2161,7 @@
     function agentName(id) {
       if (id === "meeting") return "Agent Meeting";
       if (id === "thai") return "Thai Translation";
+      if (id === "english") return "English Translation";
       const allAgents = [...agentSets.research, ...agentSets.journal];
       return (allAgents.find(agent => agent[0] === id) || currentAgents()[0])[1];
     }

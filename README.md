@@ -105,10 +105,10 @@ Journal Club mode includes shared rooms when Turso is configured.
 Rooms store compact comments and AI outputs only. They should not be used for
 patient identifiers or private clinical records.
 
-Use the `Thai` button beside the result to translate the current answer into
-professional Thai through the server-side OpenRouter route. The translator keeps
-headings, bullets, statistics, abbreviations, and citations.
-Long outputs are split into chunks so meeting results translate fully.
+Use the `TH` or `EN` buttons beside the result to translate the current answer
+through the server-side OpenRouter route. The translator keeps headings,
+bullets, statistics, abbreviations, and citations. Long outputs are split into
+chunks so meeting results translate fully.
 
 Optional translation model override:
 
