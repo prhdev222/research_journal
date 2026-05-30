@@ -366,6 +366,34 @@
       font-size: 11px;
       font-weight: 700;
     }
+    .workflow-list {
+      display: grid;
+      gap: 10px;
+    }
+    .workflow-card {
+      display: grid;
+      gap: 7px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--paper-raised);
+      text-align: left;
+      color: var(--ink);
+    }
+    .workflow-card strong {
+      font-size: 13px;
+      line-height: 1.2;
+    }
+    .workflow-card span {
+      color: var(--muted-ink);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .workflow-card small {
+      color: var(--faint-ink);
+      font-size: 10.5px;
+      line-height: 1.25;
+    }
 
     .primary {
       display: inline-flex;
@@ -1024,7 +1052,7 @@
           <h2 class="panel-title" id="agentPanelTitle">Agents</h2>
           <div class="button-row">
             <button class="secondary" id="promptBtn" type="button">Prompt</button>
-            <button class="secondary" id="exportBtn" type="button">Export</button>
+            <button class="secondary" id="workflowBtn" type="button">Workflow</button>
           </div>
         </div>
         <div class="panel-body field-stack">
@@ -1048,6 +1076,7 @@
           </label>
           <button class="secondary" id="meetingBtn" type="button">Meet Agents</button>
           <div class="button-row">
+            <button class="secondary" id="exportBtn" type="button">Export</button>
             <button class="secondary" id="loadSampleBtn" type="button">Sample</button>
             <button class="secondary danger" id="clearBtn" type="button">Clear</button>
           </div>
@@ -1098,6 +1127,19 @@
           <button class="secondary danger" id="clearPromptBtn" type="button">Clear</button>
           <button class="primary" id="savePromptBtn" type="button">Save prompt</button>
         </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="modal-backdrop hidden" id="workflowModal" role="dialog" aria-modal="true" aria-labelledby="workflowModalTitle">
+    <section class="panel modal">
+      <div class="panel-head">
+        <h2 class="panel-title" id="workflowModalTitle">Workflow Samples</h2>
+        <button class="secondary" id="closeWorkflowBtn" type="button">Close</button>
+      </div>
+      <div class="panel-body field-stack">
+        <div class="prompt-meta" id="workflowIntro"></div>
+        <div class="workflow-list" id="workflowList"></div>
       </div>
     </section>
   </div>
@@ -1188,6 +1230,63 @@
       osler: "Professor Osler is a Claude Opus premium advisor for important, high-stakes research or journal decisions. Challenge assumptions, resolve tradeoffs, and make a clear decision recommendation."
     };
 
+    const workflowSamples = [
+      {
+        mode: "research",
+        title: "Find A Research Topic",
+        goal: "Start when you only have a broad clinical area and want publishable ideas.",
+        agents: ["literature", "question", "design", "stats"],
+        modeId: "normal",
+        useMeeting: true,
+        prompt: "I do not have a fixed topic yet. Help me brainstorm feasible hematology research questions for a hospital-based retrospective study. Focus on ideas that can be done with routine clinical data and have publishable value. Propose 5 ideas and rank them by feasibility, novelty, clinical value, required data, and risk of bias."
+      },
+      {
+        mode: "research",
+        title: "Turn Idea Into PICO",
+        goal: "Use when you already have one rough idea and need a clean research question.",
+        agents: ["question"],
+        modeId: "normal",
+        useMeeting: false,
+        prompt: "Turn this broad idea into 3 precise PICO/PECO research questions. For each question, define population, exposure/intervention, comparator, outcome, feasibility, novelty, required variables, and one sentence explaining why it is worth doing."
+      },
+      {
+        mode: "research",
+        title: "Feasibility Meeting",
+        goal: "Use before committing to a project protocol.",
+        agents: ["design", "stats", "ethics", "fisher"],
+        modeId: "normal",
+        useMeeting: true,
+        prompt: "Assess whether this project is feasible in a real hospital dataset. Please discuss study design, inclusion/exclusion, core variables, endpoint, likely statistical model, missing data, confounding, ethics/PDPA risk, and the next action before data collection."
+      },
+      {
+        mode: "journal",
+        title: "Journal Club Appraisal",
+        goal: "Use after loading a paper or pasting abstract/results.",
+        agents: ["journalclub", "methods", "stats", "clinical"],
+        modeId: "normal",
+        useMeeting: true,
+        prompt: "Analyze this paper for journal club. Focus on clinical question, design, population, intervention/exposure, outcome, key results, validity, bias, statistical concerns, applicability, limitations, and 3 discussion questions."
+      },
+      {
+        mode: "journal",
+        title: "Professor Take-Home",
+        goal: "Use when the paper is complex and you want a senior opinion.",
+        agents: ["neo"],
+        modeId: "normal",
+        useMeeting: false,
+        prompt: "Give a professor-level take-home interpretation of this paper. What matters most, what is weak, what reviewers would challenge, whether it should change practice, and what question I should ask in journal club?"
+      },
+      {
+        mode: "journal",
+        title: "Search Guest Check",
+        goal: "Use when you need current evidence signals or related papers.",
+        agents: ["perplexity", "journalclub", "neo"],
+        modeId: "normal",
+        useMeeting: true,
+        prompt: "Use current evidence signals to help place this paper in context. What related evidence should I verify, what controversies exist, what citations/search terms should I check, and how does this affect the journal club conclusion?"
+      }
+    ];
+
     const storeKey = "jeda-research-cloudflare-v1";
     let state = loadState();
     let workspaceMode = state.workspaceMode || "research";
@@ -1239,7 +1338,10 @@
       promptMeta: document.getElementById("promptMeta"),
       basePrompt: document.getElementById("basePromptView"),
       customPrompt: document.getElementById("customPromptInput"),
-      customPromptCount: document.getElementById("customPromptCount")
+      customPromptCount: document.getElementById("customPromptCount"),
+      workflowModal: document.getElementById("workflowModal"),
+      workflowIntro: document.getElementById("workflowIntro"),
+      workflowList: document.getElementById("workflowList")
     };
 
     document.getElementById("researchModeBtn").addEventListener("click", () => setWorkspaceMode("research"));
@@ -1259,12 +1361,17 @@
     document.getElementById("logoutBtn").addEventListener("click", logout);
     document.getElementById("exportBtn").addEventListener("click", exportMarkdown);
     document.getElementById("promptBtn").addEventListener("click", openPromptModal);
+    document.getElementById("workflowBtn").addEventListener("click", openWorkflowModal);
     document.getElementById("closePromptBtn").addEventListener("click", closePromptModal);
+    document.getElementById("closeWorkflowBtn").addEventListener("click", closeWorkflowModal);
     document.getElementById("savePromptBtn").addEventListener("click", saveCustomPrompt);
     document.getElementById("clearPromptBtn").addEventListener("click", clearCustomPrompt);
     document.getElementById("customPromptInput").addEventListener("input", updatePromptCount);
     document.getElementById("promptModal").addEventListener("click", event => {
       if (event.target.id === "promptModal") closePromptModal();
+    });
+    document.getElementById("workflowModal").addEventListener("click", event => {
+      if (event.target.id === "workflowModal") closeWorkflowModal();
     });
     document.getElementById("clearBtn").addEventListener("click", clearInputs);
     document.getElementById("clearHistoryBtn").addEventListener("click", resetHistory);
@@ -1515,6 +1622,48 @@
 
     function updatePromptCount() {
       els.customPromptCount.textContent = `${els.customPrompt.value.length}/600`;
+    }
+
+    function openWorkflowModal() {
+      renderWorkflowModal();
+      els.workflowModal.classList.remove("hidden");
+    }
+
+    function closeWorkflowModal() {
+      els.workflowModal.classList.add("hidden");
+    }
+
+    function renderWorkflowModal() {
+      const samples = workflowSamples.filter(sample => sample.mode === workspaceMode);
+      els.workflowIntro.innerHTML = workspaceMode === "journal"
+        ? "เลือก workflow สำหรับอ่าน paper, journal club, หรือเชิญ professor/search guest."
+        : "เลือก workflow สำหรับเริ่มจาก idea กว้าง ๆ ไปจนถึง question, design, stats, และ decision.";
+      els.workflowList.innerHTML = samples.map((sample, index) => `
+        <button class="workflow-card" type="button" data-workflow-index="${index}">
+          <strong>${escapeHtml(sample.title)}</strong>
+          <span>${escapeHtml(sample.goal)}</span>
+          <small>${sample.useMeeting ? "Meet Agents" : `Ask ${escapeHtml(agentName(sample.agents[0]))}`} · ${escapeHtml(sample.agents.map(agentName).join(", "))}</small>
+        </button>
+      `).join("");
+      els.workflowList.querySelectorAll("[data-workflow-index]").forEach(button => {
+        button.addEventListener("click", () => applyWorkflow(samples[Number(button.dataset.workflowIndex)]));
+      });
+    }
+
+    function applyWorkflow(sample) {
+      if (!sample) return;
+      setWorkspaceMode(sample.mode);
+      responseMode = sample.modeId || "normal";
+      activeAgent = sample.agents[0] || defaultAgent(sample.mode);
+      els.question.value = sample.prompt;
+      persist();
+      renderAgents();
+      renderMeetingAgents();
+      renderModes();
+      setMeetingSelection(sample.agents);
+      els.activeLabel.textContent = `${agentName(activeAgent)} / ${modeName(responseMode)}`;
+      closeWorkflowModal();
+      toast(sample.useMeeting ? "Workflow loaded. Use Meet Agents." : "Workflow loaded. Use Ask AI.");
     }
 
     function newProject() {
@@ -2394,6 +2543,13 @@
       return Array.from(els.meetingAgents.querySelectorAll("input:checked"))
         .map(input => input.value)
         .slice(0, 4);
+    }
+
+    function setMeetingSelection(agentIds) {
+      const selected = new Set((agentIds || []).slice(0, 4));
+      els.meetingAgents.querySelectorAll("input").forEach(input => {
+        input.checked = selected.has(input.value);
+      });
     }
 
     function formatMeetingOutput(data) {
