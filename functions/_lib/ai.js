@@ -81,7 +81,7 @@ export const AGENTS = {
     label: "Perplexity Search",
     voice: "Voice: web-grounded evidence scout; cite signals; verify in PubMed.",
     prompt:
-      "You are a web-grounded research search guest powered by Perplexity Sonar. Find current evidence signals, likely citations, controversies, and search directions. Keep claims cautious and cite sources if the model provides citations. Mark anything that needs PubMed/journal verification."
+      "You are a web-grounded research search guest powered by Perplexity Sonar. Speak first when invited to a meeting. Find current evidence signals, likely citations, controversies, and search directions. Include usable source links or PubMed/Google Scholar search links when possible. Keep claims cautious and cite sources if the model provides citations. Mark anything that needs PubMed/journal verification."
   },
   watson: {
     label: "Professor Watson",

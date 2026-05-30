@@ -719,6 +719,11 @@
       font-weight: 900;
       text-transform: uppercase;
     }
+    .invite-help {
+      color: var(--faint-ink);
+      font-size: 11px;
+      line-height: 1.25;
+    }
     .placeholder {
       display: grid;
       gap: 12px;
@@ -1097,6 +1102,9 @@
       .invite-label {
         width: 100%;
       }
+      .invite-help {
+        width: 100%;
+      }
       .invite-strip .secondary {
         min-height: 34px;
         padding: 0 9px;
@@ -1304,6 +1312,7 @@
         </div>
         <div class="invite-strip" id="inviteStrip">
           <span class="invite-label">Follow-up</span>
+          <span class="invite-help">Type a new question above, then invite one expert.</span>
           <button class="secondary" type="button" data-invite="watson">Ask Watson</button>
           <button class="secondary" type="button" data-invite="chen">Ask Chen</button>
           <button class="secondary" type="button" data-invite="mimi">Ask Mimi</button>
@@ -1518,6 +1527,16 @@
       },
       {
         mode: "research",
+        title: "Evidence-First Medical Question",
+        goal: "Use when you want a new medical/research question and want Perplexity to search first.",
+        agents: ["perplexity", "question", "fisher", "neo"],
+        modeId: "short",
+        useMeeting: true,
+        activeMeeting: true,
+        prompt: "Start with Perplexity as the search opener. Find current evidence signals and give 2-4 useful links or PubMed/Google Scholar search links. Then help us form 3 medical research questions that are feasible, clinically useful, and answerable with hospital data. Keep token use low: each agent maximum 3 bullets. End with one best question to pursue next."
+      },
+      {
+        mode: "research",
         title: "Turn Idea Into PICO",
         goal: "Use when you already have one rough idea and need a clean research question.",
         agents: ["question"],
@@ -1569,6 +1588,16 @@
         modeId: "normal",
         useMeeting: true,
         prompt: "Use current evidence signals to help place this paper in context. What related evidence should I verify, what controversies exist, what citations/search terms should I check, and how does this affect the journal club conclusion?"
+      },
+      {
+        mode: "journal",
+        title: "Perplexity First Paper Question",
+        goal: "Use when a paper raises a new clinical question and you want links before expert discussion.",
+        agents: ["perplexity", "journalclub", "neo", "clinical"],
+        modeId: "short",
+        useMeeting: true,
+        activeMeeting: true,
+        prompt: "Start with Perplexity as the search opener. Give the most relevant current evidence signals, controversies, and 2-4 useful links or PubMed/Google Scholar search links. Then the journal club team should answer: what new medical question does this paper raise, what evidence is missing, and what should we ask next? Keep each agent to maximum 3 bullets."
       },
       {
         mode: "journal",
@@ -2063,6 +2092,7 @@
       renderModes();
       renderTaskMode();
       setMeetingSelection(sample.agents);
+      els.activeMeeting.checked = Boolean(sample.activeMeeting);
       closeWorkflowModal();
       toast(sample.useMeeting ? "Workflow loaded. Use Meet checked agents." : "Workflow loaded. Use Ask selected agent.");
     }
@@ -2696,7 +2726,8 @@
       if (!button || busy) return;
       const project = activeProject();
       const agent = button.dataset.invite;
-      const followupQuestion = project.activeFollowup || defaultFollowupQuestion(agent);
+      const typedFollowup = els.question.value.trim().slice(0, 1000);
+      const followupQuestion = typedFollowup || project.activeFollowup || defaultFollowupQuestion(agent);
       setBusy(true);
       try {
         const res = await fetch("/api/followup", {

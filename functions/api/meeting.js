@@ -61,18 +61,22 @@ export async function onRequestPost({ request, env }) {
       const agent = AGENTS[agentId] || AGENTS.summary;
       const input = buildAgentMeetingInput({
         agent,
+        agentId,
         project,
         question,
         paperText,
         projectSummary,
         agentMemory: agentMemories[agentId],
-        mode
+        mode,
+        priorTurns: turns
       });
+      const meetingExtra = agentId === "perplexity"
+        ? "SEARCH OPENER. Answer first. Use maximum 5 short bullets. Include 2-4 usable links or search URLs, such as PubMed or Google Scholar query links, plus what later professors should verify. End with the marker: Done."
+        : "MEETING MODE. Answer as one member of a research meeting. Maximum 4 complete bullets. Use any prior Perplexity search signals as context, but do not repeat them. Include: your view, main concern, best next action, and one question for another agent. Avoid repeating the paper details. End with the marker: Done.";
       const instructions = buildInstructions({
         agent,
         mode,
-        extra:
-          "MEETING MODE. Answer as one member of a research meeting. Maximum 4 complete bullets. Include: your view, main concern, best next action, and one question for another agent. Avoid repeating the paper details. End with the marker: Done.",
+        extra: meetingExtra,
         customPrompt: customPromptFor(customPrompts, agentId)
       });
       const result = await callModel({
@@ -277,6 +281,9 @@ function normalizeAgents(value, mode) {
       : new Set(["literature", "question", "design", "ethics", "stats", "writing", "deid", "summary", "perplexity", "watson", "chen", "mimi", "neo", "osler", "fisher"]);
   const raw = Array.isArray(value) && value.length ? value : defaults;
   const agents = raw.filter((agent) => allowed.has(agent)).slice(0, MEETING_AGENT_LIMIT);
+  if (agents.includes("perplexity")) {
+    agents.sort((a, b) => (a === "perplexity" ? -1 : b === "perplexity" ? 1 : 0));
+  }
   return agents.length ? agents : defaults;
 }
 
@@ -295,7 +302,14 @@ function customPromptFor(prompts, agentId) {
   return clean(prompts?.[agentId], 600);
 }
 
-function buildAgentMeetingInput({ agent, project, question, paperText, projectSummary, agentMemory, mode }) {
+function buildAgentMeetingInput({ agent, agentId, project, question, paperText, projectSummary, agentMemory, mode, priorTurns = [] }) {
+  const priorSearch = priorTurns
+    .filter((turn) => turn.agent === "perplexity")
+    .map((turn) => `${turn.label} search opener:\n${turn.output.slice(0, 1200)}`)
+    .join("\n\n");
+  const priorContext = !priorSearch && priorTurns.length
+    ? priorTurns.map((turn) => `${turn.label}: ${turn.output.slice(0, 260)}`).join("\n")
+    : "";
   return [
     `Project mode: ${project.mode}`,
     `Project title: ${project.title}`,
@@ -303,6 +317,8 @@ function buildAgentMeetingInput({ agent, project, question, paperText, projectSu
     project.paperTitle ? `Paper title/source:\n${project.paperTitle}` : "",
     projectSummary ? `Compact project memory:\n${projectSummary.slice(0, 900)}` : "",
     agentMemory ? `Your compact memory:\n${agentMemory.slice(0, 650)}` : "",
+    agentId !== "perplexity" && priorSearch ? `Use this search opener instead of searching again:\n${priorSearch}` : "",
+    agentId !== "perplexity" && priorContext ? `Prior compact meeting context:\n${priorContext}` : "",
     paperText ? `Paper/context excerpt:\n${paperText.slice(0, mode.label === "Deep" ? 6500 : 4200)}` : "",
     question ? `Meeting question:\n${question}` : "Meeting question: What is the best research or journal club answer now?",
     "",
