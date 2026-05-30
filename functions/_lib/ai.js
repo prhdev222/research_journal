@@ -1,3 +1,208 @@
+export const JOURNAL_FORMATS = {
+  blood: {
+    name: "Blood (ASH)",
+    wordLimit: 4000,
+    abstract: "structured (Background · Methods · Results · Conclusions, ≤250 words)",
+    sections: "Introduction · Methods · Results · Discussion · Conclusions",
+    style: "American English · active voice preferred · Vancouver citation style",
+    notes: "Key points box (3–5 bullets) required. Supplement allowed."
+  },
+  bjh: {
+    name: "British Journal of Haematology (BJH)",
+    wordLimit: 3500,
+    abstract: "unstructured (≤250 words)",
+    sections: "Introduction · Materials and Methods · Results · Discussion",
+    style: "British English spelling · passive voice acceptable · Vancouver citations",
+    notes: "No 'Conclusions' heading — end Discussion with conclusion paragraph."
+  },
+  haematologica: {
+    name: "Haematologica (EHA)",
+    wordLimit: 4500,
+    abstract: "structured (Background · Design and Methods · Results · Interpretation, ≤250 words)",
+    sections: "Introduction · Design and Methods · Results · Discussion",
+    style: "American English · concise · Vancouver citations",
+    notes: "Graphical abstract encouraged. Supplemental data common."
+  },
+  annals: {
+    name: "Annals of Hematology (Springer)",
+    wordLimit: 4000,
+    abstract: "structured (Purpose · Methods · Results · Conclusion, ≤250 words)",
+    sections: "Introduction · Materials and Methods · Results · Discussion · Conclusion",
+    style: "American English · Springer Vancouver style",
+    notes: "Separate Conclusion section required. Online supplementary allowed."
+  }
+};
+
+export const MANUSCRIPT_SECTIONS = {
+  proposal: "Research Proposal (draft)",
+  abstract: "Abstract",
+  introduction: "Introduction",
+  methods: "Methods",
+  results: "Results",
+  discussion: "Discussion",
+  conclusion: "Conclusion",
+  full: "Full Manuscript"
+};
+
+function buildWritingSystem(journal) {
+  const base =
+    "You are a medical writing expert for hematology journals.\n" +
+    "Style: academic English · concise · evidence-based · cautious claims.\n" +
+    "Citation placeholder: [Author, Year] — note that all citations require verification before submission.\n" +
+    "AI-assisted draft — requires human review before submission.";
+
+  const key = (journal || "").toLowerCase().trim();
+  const fmt = JOURNAL_FORMATS[key];
+  if (!fmt) return base + "\nTarget: Blood · BJH · Haematologica · Annals of Hematology (generic format).";
+
+  return (
+    base +
+    `\n\nTarget Journal: ${fmt.name}\n` +
+    `- Word limit (main text): ~${fmt.wordLimit} words\n` +
+    `- Abstract: ${fmt.abstract}\n` +
+    `- Sections: ${fmt.sections}\n` +
+    `- Style: ${fmt.style}\n` +
+    `- Notes: ${fmt.notes}\n` +
+    "Follow this journal's requirements strictly. Use section headings exactly as specified above."
+  );
+}
+
+const PROPOSAL_SECTION_LABELS = {
+  background: "Background & Rationale — why this research matters (2-4 sentences)",
+  objectives: "Research Objectives & Hypotheses — primary objective, 1-2 hypotheses",
+  design: "Study Design & Methods — design type, population, key variables, data collection (brief)",
+  stats: "Statistical Plan — analysis approach, sample size estimate if possible",
+  ethics: "Ethical Considerations — consent, PDPA, risk/benefit, IRB notes",
+  outcomes: "Expected Outcomes & Significance — what we expect to find and why it matters",
+  timeline: "Timeline — rough phases (e.g. months 1-3: recruitment, months 4-6: analysis)"
+};
+
+export function buildWritingInstructions({ mode, journal, section, proposalSections, customPrompt = "" }) {
+  const sectionLabel = MANUSCRIPT_SECTIONS[section] || "Full Manuscript";
+  const isFull = !section || section === "full";
+  const isProposal = section === "proposal";
+  const selectedSecs = isProposal && Array.isArray(proposalSections) && proposalSections.length > 0
+    ? proposalSections
+    : ["background", "objectives", "design", "outcomes"];
+  const secList = selectedSecs
+    .map((k, i) => `${i + 1}. ${PROPOSAL_SECTION_LABELS[k] || k}`)
+    .join("\n");
+  const sectionInstruction = isProposal
+    ? `Write a concise first-draft research proposal with only the selected sections below. Use clear headings for each section:\n${secList}\nThis is an early draft to explore the idea and get feedback — keep each section short and practical. Use plain language. Flag gaps or assumptions that need checking.`
+    : isFull
+      ? "Write all manuscript sections in order: Abstract, Introduction, Methods, Results, Discussion, Conclusion (or the journal-specified sections). Use clear headings."
+      : `Write only the ${sectionLabel} section. Use the correct heading for the target journal. Be complete and do not truncate.`;
+
+  return [
+    "You are Research Assistant, an AI system. Be transparent that you are AI if asked.",
+    "PDPA-first: do not request or retain patient identifiers. If input contains identifiable patient data, warn and suggest de-identified alternatives.",
+    "This is research support, not medical advice or a clinical decision system.",
+    buildWritingSystem(journal),
+    mode.prompt,
+    sectionInstruction,
+    "Always finish the section completely in one response. Do not end mid-sentence or truncate.",
+    customPrompt ? `USER CUSTOM INSTRUCTION:\n${customPrompt}` : ""
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+export const CASE_REPORT_SECTIONS = {
+  sequence: "Writing Sequence Guide",
+  presentation: "Case Presentation",
+  discussion: "Discussion",
+  introduction: "Introduction",
+  abstract: "Abstract",
+  title: "Title & Keywords",
+  consent: "Patient Consent Note"
+};
+
+const CASE_SECTION_PATTERNS = {
+  sequence: `CARE Writing Sequence (write in this order, read in different order):
+1. Case Presentation — your raw material first
+   Pattern: "A [age]-year-old [sex] with [background] presented with [symptom/duration]. Examination: [findings]. Investigations: [key results]. Treatment: [what was done]. Outcome: [result/follow-up]."
+2. Discussion — why this case matters
+   Pattern: "This case is notable because [rare/unusual feature]. Incidence of X is [data if known]. Previous reports showed []. Our case differs in []. The key learning point is []."
+3. Introduction — context, written after you know the whole case
+   Pattern: "X is a rare condition affecting []. We present a case of [] to highlight [clinical lesson]."
+4. Abstract — summary of everything (Background · Case Presentation · Conclusions)
+5. Title — final, after you know exactly what you have
+   Pattern: "[Condition]: A Case Report / [Rare feature] in [Population]: A Case Report"
+6. Patient Consent Note — administrative last step`,
+
+  presentation: `Pattern for Case Presentation:
+Opening: "A [age]-year-old [sex] [with/without relevant background] presented with [chief complaint] for [duration]."
+History: Key relevant history, medications, family history if relevant.
+Examination: Vital signs + key positive and negative findings.
+Investigations: Most important results in logical order (labs → imaging → biopsy/special tests). Use specific values.
+Timeline: If complex, add a timeline table.
+Treatment: What was given, in what order, doses if relevant.
+Outcome: Response to treatment, follow-up, current status.
+Tip: Write in past tense. Be specific with values. Avoid interpretation here — save that for Discussion.`,
+
+  discussion: `Pattern for Discussion:
+Para 1 — What makes this case unique/rare: "This case is notable for [feature]. The reported incidence/prevalence of X is []. To our knowledge, this is [the first/one of few] reports of []."
+Para 2 — What is known in literature: "Previous reports have shown []. [Author] et al. reported []."
+Para 3 — How your case compares/differs: "Our case differs from previous reports in []."
+Para 4 — Clinical implications and learning points: "This case highlights the importance of []. Clinicians should [consider/be aware of] [] when encountering []."
+Para 5 (optional) — Limitations: "Limitations include []."
+Tip: Each paragraph should make one clear point. Cite as you go.`,
+
+  introduction: `Pattern for Introduction (keep short, 1-2 paragraphs):
+Para 1 — What is this condition and why is it notable: "X is a [rare/uncommon] [condition/presentation] characterized by []. It affects [] with an estimated incidence of []."
+Para 2 — Why you are reporting this case: "We present a case of [] to highlight [] and review the relevant literature."
+Tip: Write this AFTER you finish Case Presentation and Discussion. Keep it under 150 words.`,
+
+  abstract: `Pattern for Structured Abstract:
+Background: "X is a rare condition. We present a case to highlight []."
+Case Presentation: "A [age]-year-old [sex] presented with []. Investigations showed []. Treatment with [] resulted in []."
+Conclusions: "This case highlights [] and emphasizes the importance of []."
+Tip: Write abstract last. Max ~150-250 words depending on journal. No citations in abstract.`,
+
+  title: `Patterns for Case Report Title:
+Option A: "[Rare condition/finding]: A Case Report"
+Option B: "[Unusual presentation] of [Condition]: A Case Report"
+Option C: "[Clinical lesson learned] from [Condition]: A Case Report"
+Keywords (4-6): disease name, rare feature, treatment used, outcome, population.
+Tip: Title should tell the reader exactly what is rare/interesting about this case.`,
+
+  consent: `Patient Consent Note:
+Standard text: "Written informed consent was obtained from the patient for publication of this case report and any accompanying images."
+If deceased or minor: note who gave consent (next of kin / guardian).
+De-identification reminder: Remove name, exact DOB, hospital number, and rare identifying combinations before submission.`
+};
+
+export function buildCaseReportInstructions({ mode, section, inputMode, customPrompt = "" }) {
+  const secLabel = CASE_REPORT_SECTIONS[section] || "Case Presentation";
+  const pattern = CASE_SECTION_PATTERNS[section] || CASE_SECTION_PATTERNS.presentation;
+
+  const isTranslate = inputMode === "translate";
+  const isReview = inputMode === "review";
+  const isGuide = section === "sequence";
+
+  const taskInstruction = isGuide
+    ? "Show the full CARE writing sequence with patterns for each section. Format clearly with numbered steps and patterns."
+    : isTranslate
+      ? `The user will provide notes in Thai. Translate and structure them into an English ${secLabel} section following the pattern below. Keep medical values exact. Flag any missing information needed to complete the section.\n\nPattern:\n${pattern}`
+      : isReview
+        ? `Review the user's draft ${secLabel} section as a professor mentoring a resident. Give specific feedback: (1) what is written well, (2) what is missing or unclear, (3) what should be added or changed, (4) one specific rewrite suggestion for the weakest part. Use the standard pattern as reference.\n\nPattern:\n${pattern}`
+        : `Write the ${secLabel} section following the pattern below. If information is missing, note what needs to be filled in.\n\nPattern:\n${pattern}`;
+
+  return [
+    "You are Case Writer, an experienced hematology attending and case report writing mentor.",
+    "PDPA-first: if input contains patient name, exact DOB, hospital number, or identifying details, flag immediately and suggest de-identified wording.",
+    "This is writing assistance, not a clinical decision system.",
+    "Follow CARE (CAse REport) guidelines.",
+    mode.prompt,
+    taskInstruction,
+    "Be specific, practical, and encouraging. Give concrete suggestions, not vague advice.",
+    "Always finish completely. Do not truncate.",
+    customPrompt ? `USER CUSTOM INSTRUCTION:\n${customPrompt}` : ""
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 export const AGENTS = {
   literature: {
     label: "Literature Scout",
@@ -46,6 +251,12 @@ export const AGENTS = {
     voice: "Voice: action-focused summarizer; decisions, risks, next steps.",
     prompt:
       "You summarize research plans into clear next actions, risks, assumptions, and decisions needed."
+  },
+  casereport: {
+    label: "Case Writer",
+    voice: "Voice: attending-mentor; CARE guideline; pattern-first; constructive.",
+    prompt:
+      "You are a hematology case report writing mentor. Guide the user through CARE guideline structure, provide section-specific patterns, translate Thai clinical notes to English, and review drafts with specific professor-style feedback."
   },
   journalclub: {
     label: "Journal Club",
@@ -141,7 +352,7 @@ export const RESPONSE_MODES = {
 
 export function buildInstructions({ agent, mode, extra = "", customPrompt = "" }) {
   return [
-    "You are JEDA Research Assistant, an AI system. Be transparent that you are AI if asked.",
+    "You are Research Assistant, an AI system. Be transparent that you are AI if asked.",
     "PDPA-first: do not request or retain patient identifiers. If input contains identifiable patient data, warn and suggest de-identified alternatives.",
     "This is research support, not medical advice or a clinical decision system.",
     "Prefer the shortest useful answer. Do not explain your process unless asked.",
@@ -203,7 +414,7 @@ async function callOpenRouter({ env, request, agentId, instructions, input, maxT
       "content-type": "application/json",
       authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
       "http-referer": env.SITE_URL || new URL(request.url).origin,
-      "x-title": "JEDA Research Assistant"
+      "x-title": "Research Assistant"
     },
     body: JSON.stringify({
       model,

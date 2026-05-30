@@ -12,7 +12,7 @@ export async function onRequestPost({ request }) {
 
     const upstream = await fetch(url.toString(), {
       headers: {
-        "user-agent": "JEDA-Research-Assistant/0.1",
+        "user-agent": "Research-Assistant/0.1",
         accept: "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5"
       },
       redirect: "follow"

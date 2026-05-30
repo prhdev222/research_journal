@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f4efe3">
-  <title>JEDA Research Assistant</title>
+  <title>Research Assistant</title>
   <style>
     :root {
       --bench: #f7f1e7;
@@ -1174,7 +1174,7 @@
       <div class="brand">
         <div class="mark">JD</div>
         <div>
-          <h1>JEDA Research Assistant</h1>
+          <h1>Research Assistant</h1>
           <p class="subtitle">Cloudflare Pages · mobile research workbench</p>
         </div>
       </div>
@@ -1347,6 +1347,56 @@
           </label>
           <div class="task-panel" id="singleTaskPanel">
             <div class="agent-grid" id="agentGrid"></div>
+            <div id="manuscriptSectionRow" class="hidden" style="margin-bottom:8px">
+              <label style="font-size:13px;font-weight:700;display:block;margin-bottom:4px">Manuscript section</label>
+              <select id="manuscriptSection" style="width:100%;padding:7px 10px;border:1.5px solid var(--line-strong);border-radius:var(--radius);background:var(--paper);font-size:13px">
+                <option value="proposal">Research Proposal (first draft)</option>
+                <option value="full">Full Manuscript (all sections)</option>
+                <option value="abstract">Abstract</option>
+                <option value="introduction">Introduction</option>
+                <option value="methods">Methods</option>
+                <option value="results">Results</option>
+                <option value="discussion">Discussion</option>
+                <option value="conclusion">Conclusion</option>
+              </select>
+              <div id="proposalSectionPicker" class="hidden" style="margin-top:8px;padding:8px 10px;background:var(--paper-inset);border-radius:var(--radius);border:1px solid var(--line)">
+                <div style="font-size:11px;color:var(--muted-ink);margin-bottom:6px">เลือก section ที่ต้องการ:</div>
+                <div style="display:flex;flex-direction:column;gap:4px">
+                  <label style="font-size:12.5px;display:flex;align-items:center;gap:8px;cursor:pointer;line-height:1.3"><input type="checkbox" class="proposal-sec" value="background" checked style="width:14px;height:14px;flex-shrink:0;accent-color:var(--methylene);cursor:pointer"> Background &amp; Rationale</label>
+                  <label style="font-size:12.5px;display:flex;align-items:center;gap:8px;cursor:pointer;line-height:1.3"><input type="checkbox" class="proposal-sec" value="objectives" checked style="width:14px;height:14px;flex-shrink:0;accent-color:var(--methylene);cursor:pointer"> Research Objectives &amp; Hypotheses</label>
+                  <label style="font-size:12.5px;display:flex;align-items:center;gap:8px;cursor:pointer;line-height:1.3"><input type="checkbox" class="proposal-sec" value="design" checked style="width:14px;height:14px;flex-shrink:0;accent-color:var(--methylene);cursor:pointer"> Study Design &amp; Methods</label>
+                  <label style="font-size:12.5px;display:flex;align-items:center;gap:8px;cursor:pointer;line-height:1.3"><input type="checkbox" class="proposal-sec" value="stats" style="width:14px;height:14px;flex-shrink:0;accent-color:var(--methylene);cursor:pointer"> Statistical Plan</label>
+                  <label style="font-size:12.5px;display:flex;align-items:center;gap:8px;cursor:pointer;line-height:1.3"><input type="checkbox" class="proposal-sec" value="ethics" style="width:14px;height:14px;flex-shrink:0;accent-color:var(--methylene);cursor:pointer"> Ethical Considerations</label>
+                  <label style="font-size:12.5px;display:flex;align-items:center;gap:8px;cursor:pointer;line-height:1.3"><input type="checkbox" class="proposal-sec" value="outcomes" checked style="width:14px;height:14px;flex-shrink:0;accent-color:var(--methylene);cursor:pointer"> Expected Outcomes &amp; Significance</label>
+                  <label style="font-size:12.5px;display:flex;align-items:center;gap:8px;cursor:pointer;line-height:1.3"><input type="checkbox" class="proposal-sec" value="timeline" style="width:14px;height:14px;flex-shrink:0;accent-color:var(--methylene);cursor:pointer"> Timeline</label>
+                </div>
+              </div>
+            </div>
+            <div id="caseReportRow" class="hidden" style="margin-bottom:8px;padding:10px;background:var(--paper-inset);border-radius:var(--radius);border:1px solid var(--line)">
+              <div style="font-size:11px;color:var(--muted-ink);margin-bottom:8px;font-weight:700">CASE WRITER</div>
+              <label style="font-size:13px;font-weight:700;display:block;margin-bottom:4px">Section</label>
+              <select id="caseSection" style="width:100%;padding:7px 10px;border:1.5px solid var(--line-strong);border-radius:var(--radius);background:var(--paper);font-size:13px;margin-bottom:8px">
+                <option value="sequence">📋 Writing Sequence Guide (start here)</option>
+                <option value="presentation">1. Case Presentation</option>
+                <option value="discussion">2. Discussion</option>
+                <option value="introduction">3. Introduction</option>
+                <option value="abstract">4. Abstract</option>
+                <option value="title">5. Title &amp; Keywords</option>
+                <option value="consent">6. Patient Consent Note</option>
+              </select>
+              <label style="font-size:13px;font-weight:700;display:block;margin-bottom:4px">Mode</label>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer;padding:5px 10px;border:1.5px solid var(--line-strong);border-radius:20px;background:var(--paper)">
+                  <input type="radio" name="caseInputMode" value="write" checked style="accent-color:var(--methylene);width:13px;height:13px"> Write section
+                </label>
+                <label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer;padding:5px 10px;border:1.5px solid var(--line-strong);border-radius:20px;background:var(--paper)">
+                  <input type="radio" name="caseInputMode" value="translate" style="accent-color:var(--methylene);width:13px;height:13px"> Thai → English
+                </label>
+                <label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer;padding:5px 10px;border:1.5px solid var(--line-strong);border-radius:20px;background:var(--paper)">
+                  <input type="radio" name="caseInputMode" value="review" style="accent-color:var(--methylene);width:13px;height:13px"> Professor review
+                </label>
+              </div>
+            </div>
             <button class="primary" id="askBtn" type="button">Ask selected agent</button>
           </div>
           <div class="task-panel hidden" id="meetingTaskPanel">
@@ -1441,6 +1491,7 @@
         ["ethics", "Ethics", "IRB and PDPA"],
         ["stats", "Stats", "Analysis plan"],
         ["writing", "Writing", "Manuscript prose"],
+        ["casereport", "Case Writer", "CARE guideline"],
         ["deid", "De-ID", "Privacy check"],
         ["neo", "Professor Neo", "Claude expert"],
         ["perplexity", "Perplexity", "Search guest"],
@@ -1480,6 +1531,7 @@
       ethics: { model: "Gemini Flash-Lite", character: "PDPA-first; risk-aware" },
       stats: { model: "Gemini Flash", character: "assumption checker; analysis-plan focused" },
       writing: { model: "Gemini Flash", character: "concise academic editor" },
+      casereport: { model: "Gemini Flash", character: "attending mentor · CARE guideline" },
       deid: { model: "Gemini Flash-Lite", character: "privacy sentinel" },
       summary: { model: "Gemini Flash-Lite", character: "action-focused summarizer" },
       journalclub: { model: "Gemini Flash", character: "structured paper appraiser" },
@@ -1656,6 +1708,10 @@
       status: document.getElementById("statusText"),
       toast: document.getElementById("toast"),
       ask: document.getElementById("askBtn"),
+      manuscriptSectionRow: document.getElementById("manuscriptSectionRow"),
+      manuscriptSection: document.getElementById("manuscriptSection"),
+      proposalSectionPicker: document.getElementById("proposalSectionPicker"),
+      caseReportRow: document.getElementById("caseReportRow"),
       meeting: document.getElementById("meetingBtn"),
       singleTaskBtn: document.getElementById("singleTaskBtn"),
       meetingTaskBtn: document.getElementById("meetingTaskBtn"),
@@ -1832,6 +1888,7 @@
           persist();
           renderAgents();
           updateActiveLabel();
+          els.manuscriptSectionRow.classList.toggle("hidden", activeAgent !== "writing");
           if (!els.promptModal.classList.contains("hidden")) renderPromptModal();
         });
       });
@@ -1914,7 +1971,21 @@
       els.activeLabel.textContent = taskMode === "meeting"
         ? `Meeting / ${modeName(responseMode)}`
         : `${agentName(activeAgent)} / ${modeName(responseMode)}`;
+      els.manuscriptSectionRow.classList.toggle("hidden", activeAgent !== "writing");
+      els.caseReportRow.classList.toggle("hidden", activeAgent !== "casereport");
+      updateProposalPicker();
     }
+
+    function updateProposalPicker() {
+      const isProposal = activeAgent === "writing" && els.manuscriptSection.value === "proposal";
+      els.proposalSectionPicker.classList.toggle("hidden", !isProposal);
+    }
+
+    function getSelectedProposalSections() {
+      return Array.from(document.querySelectorAll(".proposal-sec:checked")).map(cb => cb.value);
+    }
+
+    els.manuscriptSection.addEventListener("change", updateProposalPicker);
 
     function updateMobilePrimaryLabel() {
       if (busy) {
@@ -2122,6 +2193,10 @@
         mode: responseMode,
         topic: project.topic,
         journal: project.journal,
+        section: activeAgent === "writing" ? (els.manuscriptSection?.value || "full") : undefined,
+        proposalSections: activeAgent === "writing" && els.manuscriptSection?.value === "proposal" ? getSelectedProposalSections() : undefined,
+        caseSection: activeAgent === "casereport" ? (document.getElementById("caseSection")?.value || "sequence") : undefined,
+        caseInputMode: activeAgent === "casereport" ? (document.querySelector('input[name="caseInputMode"]:checked')?.value || "write") : undefined,
         question: els.question.value.trim(),
         notes: project.lastOutput || "",
         customPrompt: customPromptFor(activeAgent)

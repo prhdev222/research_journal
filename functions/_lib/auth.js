@@ -59,7 +59,7 @@ export function loginPage() {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f7f1e7">
-  <title>JEDA Access</title>
+  <title>Research Access</title>
   <style>
     :root { color-scheme: light; --ink:#17211e; --muted:#5e6a64; --line:rgba(32,45,39,.14); --paper:#fffdf7; --bench:#f7f1e7; --teal:#0e6f73; --red:#9e2f3e; }
     * { box-sizing: border-box; }
@@ -79,7 +79,7 @@ export function loginPage() {
 <body>
   <main>
     <header>
-      <h1>JEDA Research Access</h1>
+      <h1>Research Access</h1>
       <p>ใส่รหัสที่ admin ให้ก่อนใช้งาน AI และ journal club</p>
     </header>
     <form id="loginForm">
