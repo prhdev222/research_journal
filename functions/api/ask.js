@@ -27,12 +27,18 @@ export async function onRequestPost({ request, env }) {
       "",
       `Response mode: ${mode.label}`,
       mode.prompt,
-      "Return Thai or English matching the user's language."
+      "Return Thai or English matching the user's language.",
+      "Finish the answer completely in this response. End with the marker: Done."
     ]
       .filter(Boolean)
       .join("\n\n");
 
-    const instructions = buildInstructions({ agent, mode, customPrompt });
+    const instructions = buildInstructions({
+      agent,
+      mode,
+      customPrompt,
+      extra: "SINGLE AGENT ANSWER. Complete every requested section. End with the marker: Done."
+    });
     const result = await callModel({
       env,
       request,

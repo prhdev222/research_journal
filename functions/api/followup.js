@@ -22,7 +22,7 @@ export async function onRequestPost({ request, env }) {
       instructions: buildInstructions({
         agent,
         mode,
-        extra: "INVITED ACTIVE MEETING GUEST. Answer only the follow-up. Maximum 4 bullets.",
+        extra: "INVITED ACTIVE MEETING GUEST. Answer only the follow-up. Maximum 4 complete bullets. End with the marker: Done.",
         customPrompt
       }),
       input: [
@@ -32,7 +32,7 @@ export async function onRequestPost({ request, env }) {
       ]
         .filter(Boolean)
         .join("\n\n"),
-      maxTokens: agentId === "osler" ? 520 : 380
+      maxTokens: agentId === "osler" ? 900 : 760
     });
 
     return json({

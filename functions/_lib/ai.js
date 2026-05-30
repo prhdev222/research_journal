@@ -112,30 +112,30 @@ export const AGENTS = {
 export const RESPONSE_MODES = {
   short: {
     label: "Short",
-    maxOutputTokens: 520,
+    maxOutputTokens: 800,
     topicLimit: 900,
     questionLimit: 1200,
     notesLimit: 1200,
     prompt:
-      "SHORT MODE. Minimize token use. Answer with no intro, no outro, and maximum 5 bullets total. Use only these headings if useful: Summary, Next, Risk, Verify. Each bullet must be one short sentence."
+      "SHORT MODE. Minimize token use. Answer with no intro and maximum 5 bullets total. Use only these headings if useful: Summary, Next, Risk, Verify. Each bullet must be one short sentence. Finish with a complete final bullet; do not stop mid-sentence."
   },
   normal: {
     label: "Normal",
-    maxOutputTokens: 1100,
+    maxOutputTokens: 1600,
     topicLimit: 1400,
     questionLimit: 2500,
     notesLimit: 3000,
     prompt:
-      "NORMAL MODE. Use short headings and actionable bullets. Keep the response compact and avoid repeated caveats."
+      "NORMAL MODE. Use short headings and actionable bullets. Keep the response compact and avoid repeated caveats. Finish the answer completely."
   },
   deep: {
     label: "Deep",
-    maxOutputTokens: 2600,
+    maxOutputTokens: 3400,
     topicLimit: 2200,
     questionLimit: 5000,
     notesLimit: 6500,
     prompt:
-      "DEEP MODE. Provide a fuller structured research note with assumptions, decisions, risks, and verification steps. Stay concise, but include enough detail to act."
+      "DEEP MODE. Provide a fuller structured research note with assumptions, decisions, risks, and verification steps. Stay concise, include enough detail to act, and finish all sections completely."
   }
 };
 
@@ -145,6 +145,7 @@ export function buildInstructions({ agent, mode, extra = "", customPrompt = "" }
     "PDPA-first: do not request or retain patient identifiers. If input contains identifiable patient data, warn and suggest de-identified alternatives.",
     "This is research support, not medical advice or a clinical decision system.",
     "Prefer the shortest useful answer. Do not explain your process unless asked.",
+    "Always finish the answer in one response. Do not end mid-sentence, mid-bullet, or with an unfinished list.",
     mode.prompt,
     extra,
     customPrompt ? `USER CUSTOM INSTRUCTION FOR THIS AGENT:\n${customPrompt}` : "",

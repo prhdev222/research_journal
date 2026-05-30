@@ -14,9 +14,9 @@ import {
 } from "../_lib/turso.js";
 
 const MEETING_AGENT_LIMIT = 4;
-const AGENT_TOKENS = 430;
-const NEO_TOKENS = 680;
-const FOLLOWUP_TOKENS = 320;
+const AGENT_TOKENS = 820;
+const NEO_TOKENS = 1300;
+const FOLLOWUP_TOKENS = 720;
 
 export async function onRequestPost({ request, env }) {
   try {
@@ -72,7 +72,7 @@ export async function onRequestPost({ request, env }) {
         agent,
         mode,
         extra:
-          "MEETING MODE. Answer as one member of a research meeting. Maximum 4 bullets. Include: your view, main concern, best next action, and one question for another agent. Avoid repeating the paper details.",
+          "MEETING MODE. Answer as one member of a research meeting. Maximum 4 complete bullets. Include: your view, main concern, best next action, and one question for another agent. Avoid repeating the paper details. End with the marker: Done.",
         customPrompt: customPromptFor(customPrompts, agentId)
       });
       const result = await callModel({
@@ -238,7 +238,7 @@ async function answerFollowup({ env, request, project, originalQuestion, followu
     turns.map((turn) => `${turn.label}: ${turn.output.slice(0, 300)}`).join("\n"),
     `Prior synthesis:\n${synthesis.slice(0, 700)}`,
     "",
-    "Answer the follow-up in maximum 4 bullets. Focus on decision, risk, and next action."
+    "Answer the follow-up in maximum 4 complete bullets. Focus on decision, risk, and next action. End with the marker: Done."
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -249,7 +249,7 @@ async function answerFollowup({ env, request, project, originalQuestion, followu
     instructions: buildInstructions({
       agent,
       mode,
-      extra: "ACTIVE MEETING FOLLOW-UP. Answer concisely; do not repeat prior discussion.",
+      extra: "ACTIVE MEETING FOLLOW-UP. Answer concisely; do not repeat prior discussion. Finish completely and end with the marker: Done.",
       customPrompt: customPromptFor(customPrompts, agentId)
     }),
     input,
@@ -339,7 +339,7 @@ async function synthesizeFinal({ env, request, project, question, paperText, pro
     agent,
     mode,
     extra:
-      "FINAL MEETING SYNTHESIS. Be professor-level, concise, and decisive. Resolve disagreement. Do not invent facts. Maximum 6 bullets.",
+      "FINAL MEETING SYNTHESIS. Be professor-level, concise, and decisive. Resolve disagreement. Do not invent facts. Maximum 6 complete bullets. End with the marker: Done.",
     customPrompt: customPromptFor(customPrompts, finalAgentId)
   });
   return callModel({
