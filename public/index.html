@@ -701,6 +701,7 @@
     }
     .invite-strip {
       display: none;
+      align-items: center;
       gap: 8px;
       flex-wrap: wrap;
       padding: 12px 14px;
@@ -711,6 +712,12 @@
     .invite-strip .secondary {
       min-height: 36px;
       font-size: 12px;
+    }
+    .invite-label {
+      color: var(--muted-ink);
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
     }
     .placeholder {
       display: grid;
@@ -1087,6 +1094,9 @@
         padding: 10px;
         gap: 6px;
       }
+      .invite-label {
+        width: 100%;
+      }
       .invite-strip .secondary {
         min-height: 34px;
         padding: 0 9px;
@@ -1293,6 +1303,7 @@
           </div>
         </div>
         <div class="invite-strip" id="inviteStrip">
+          <span class="invite-label">Follow-up</span>
           <button class="secondary" type="button" data-invite="watson">Ask Watson</button>
           <button class="secondary" type="button" data-invite="chen">Ask Chen</button>
           <button class="secondary" type="button" data-invite="mimi">Ask Mimi</button>
@@ -1524,6 +1535,15 @@
         prompt: "Assess whether this project is feasible in a real hospital dataset. Please discuss study design, inclusion/exclusion, core variables, endpoint, likely statistical model, missing data, confounding, ethics/PDPA risk, and the next action before data collection."
       },
       {
+        mode: "research",
+        title: "Short Decision Meeting",
+        goal: "Use when answers are too long and you want Fisher, Neo, and Osler to decide briefly.",
+        agents: ["fisher", "neo", "osler"],
+        modeId: "short",
+        useMeeting: true,
+        prompt: "Please keep every agent answer very short. Fisher should state feasibility and the practical next step. Neo should give senior research interpretation. Osler should only comment if the decision is important, then give the final concise decision summary. Use bullet points only. Maximum 5 bullets total. End with: Go / Revise / Stop."
+      },
+      {
         mode: "journal",
         title: "Journal Club Appraisal",
         goal: "Use after loading a paper or pasting abstract/results.",
@@ -1549,6 +1569,15 @@
         modeId: "normal",
         useMeeting: true,
         prompt: "Use current evidence signals to help place this paper in context. What related evidence should I verify, what controversies exist, what citations/search terms should I check, and how does this affect the journal club conclusion?"
+      },
+      {
+        mode: "journal",
+        title: "Short Osler Conclusion",
+        goal: "Use after a long journal club discussion when you need a brief decision-level conclusion.",
+        agents: ["journalclub", "neo", "osler"],
+        modeId: "short",
+        useMeeting: true,
+        prompt: "Please keep this journal club meeting short. Journal Club should give the key finding and major limitation. Neo should give the professor-level interpretation. Osler should only focus on the important decision: whether this paper changes practice, what is still uncertain, and the final take-home. Use bullet points only. Maximum 5 bullets total."
       }
     ];
 
@@ -2639,18 +2668,19 @@
 
     function setOutput(text) {
       const project = activeProject();
-      els.inviteStrip.classList.toggle("visible", Boolean(project?.activeFollowup));
+      els.inviteStrip.classList.toggle("visible", Boolean(project?.activeFollowup || project?.lastMeetingData));
       if (!text) {
         if (project) {
           project.activeFollowup = "";
           project.activeContext = "";
+          project.lastMeetingData = null;
         }
         els.inviteStrip.classList.remove("visible");
         els.response.innerHTML = `
           <div class="placeholder">
             <div class="protocol-line"><strong>1. Capture</strong><span>Write a de-identified topic or paste working notes.</span></div>
-            <div class="protocol-line"><strong>2. Choose</strong><span>Select an agent for literature, research question, design, ethics, stats, writing, de-ID, or summary.</span></div>
-            <div class="protocol-line"><strong>3. Ask</strong><span>Send the request. The AI key is used only by the Cloudflare Function.</span></div>
+            <div class="protocol-line"><strong>2. Choose</strong><span>Use Ask one agent for a focused answer, or Meet agents for a panel discussion.</span></div>
+            <div class="protocol-line"><strong>3. Ask</strong><span>Only the selected action opens. The AI key stays inside the Cloudflare Function.</span></div>
           </div>`;
         return;
       }
@@ -2665,11 +2695,8 @@
       const button = event.target.closest("[data-invite]");
       if (!button || busy) return;
       const project = activeProject();
-      if (!project.activeFollowup) {
-        toast("No active follow-up question yet.");
-        return;
-      }
       const agent = button.dataset.invite;
+      const followupQuestion = project.activeFollowup || defaultFollowupQuestion(agent);
       setBusy(true);
       try {
         const res = await fetch("/api/followup", {
@@ -2678,15 +2705,32 @@
           body: JSON.stringify({
             agent,
             mode: responseMode,
-            followupQuestion: project.activeFollowup,
+            followupQuestion,
             context: project.activeContext || project.lastOutput || "",
             customPrompt: customPromptFor(agent)
           })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Follow-up failed.");
-        const addition = `\n\n## ${data.label} Invited Answer\n${data.output}`;
-        project.lastOutput = `${project.lastOutput || els.response.innerText}${addition}`;
+        if (project.lastMeetingData) {
+          project.lastMeetingData.active = project.lastMeetingData.active || {
+            question: followupQuestion,
+            answers: []
+          };
+          project.lastMeetingData.active.question = project.lastMeetingData.active.question || followupQuestion;
+          project.lastMeetingData.active.answers = project.lastMeetingData.active.answers || [];
+          project.lastMeetingData.active.answers.push({
+            label: data.label,
+            model: data.model,
+            provider: data.provider,
+            output: data.output
+          });
+          project.lastOutput = formatMeetingOutput(project.lastMeetingData);
+        } else {
+          const addition = `\n\n## ${data.label} Invited Answer\n${data.output}`;
+          project.lastOutput = `${project.lastOutput || els.response.innerText}${addition}`;
+        }
+        project.activeFollowup = followupQuestion;
         project.activeContext = project.lastOutput.slice(0, 4500);
         project.history = project.history || [];
         project.history.push({
@@ -2704,6 +2748,16 @@
       } finally {
         setBusy(false);
       }
+    }
+
+    function defaultFollowupQuestion(agent) {
+      if (agent === "osler") {
+        return "Please review the whole meeting and give a very concise final decision summary. Use maximum 5 bullets. End with: Go / Revise / Stop.";
+      }
+      if (agent === "perplexity") {
+        return "Please suggest the most important evidence checks, search terms, and related papers to verify next. Keep it short.";
+      }
+      return "Please review the whole meeting and add a concise follow-up opinion. Focus only on what changes the conclusion or next action.";
     }
 
     async function copyOutput() {
