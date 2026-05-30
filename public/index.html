@@ -151,7 +151,7 @@
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 10px;
-      margin-bottom: 16px;
+      margin-bottom: 10px;
     }
     .mode-card {
       display: grid;
@@ -186,6 +186,34 @@
       inset: 0 auto 0 0;
       width: 4px;
       background: var(--blood);
+    }
+    .journal-tabs,
+    .task-switch {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+      padding: 4px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(255, 250, 240, 0.52);
+    }
+    .journal-tabs {
+      margin-bottom: 16px;
+    }
+    .journal-tab,
+    .task-option {
+      min-height: 40px;
+      padding: 0 10px;
+      background: transparent;
+      color: var(--muted-ink);
+      font-size: 12px;
+      font-weight: 850;
+    }
+    .journal-tab.active,
+    .task-option.active {
+      background: var(--graphite);
+      color: white;
+      box-shadow: 0 8px 18px rgba(48, 58, 54, 0.15);
     }
     .project-panel { grid-column: 1; grid-row: 1; }
     .journal-panel { grid-column: 1; grid-row: 2; }
@@ -280,6 +308,10 @@
       border: 1px solid var(--line);
       border-radius: var(--radius);
       background: rgba(255, 250, 240, 0.52);
+    }
+    .task-panel {
+      display: grid;
+      gap: 12px;
     }
     .mode {
       min-height: 38px;
@@ -427,6 +459,9 @@
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 8px;
+    }
+    .button-row.three {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
     .translate-row {
       display: grid;
@@ -705,6 +740,10 @@
       body[data-workspace-mode="journal"] .room-panel {
         grid-row: 2 / span 2;
       }
+      body[data-workspace-mode="journal"][data-journal-view="paper"] .journal-panel,
+      body[data-workspace-mode="journal"][data-journal-view="room"] .room-panel {
+        grid-row: 1 / span 3;
+      }
       body[data-workspace-mode="journal"] .paper-text {
         max-height: 160px;
       }
@@ -934,6 +973,11 @@
       </button>
     </nav>
 
+    <div class="journal-tabs hidden" id="journalTabs" aria-label="Journal Club section">
+      <button class="journal-tab" id="paperViewBtn" type="button">Paper</button>
+      <button class="journal-tab" id="roomViewBtn" type="button">Room</button>
+    </div>
+
     <main class="workspace">
       <section class="panel project-panel">
         <div class="panel-head">
@@ -1037,8 +1081,8 @@
         <div class="response" id="responseBox">
           <div class="placeholder">
             <div class="protocol-line"><strong>1. Capture</strong><span>Write a de-identified topic or paste working notes.</span></div>
-            <div class="protocol-line"><strong>2. Choose</strong><span>Select an agent for literature, research question, design, ethics, stats, writing, de-ID, or summary.</span></div>
-            <div class="protocol-line"><strong>3. Ask</strong><span>Send the request. The AI key is used only by the Cloudflare Function.</span></div>
+            <div class="protocol-line"><strong>2. Choose</strong><span>Use Ask one agent for a focused answer, or Meet agents for a panel discussion.</span></div>
+            <div class="protocol-line"><strong>3. Ask</strong><span>Only the selected action opens. The AI key stays inside the Cloudflare Function.</span></div>
           </div>
         </div>
         <div class="invite-strip" id="inviteStrip">
@@ -1059,26 +1103,37 @@
           </div>
         </div>
         <div class="panel-body field-stack">
-          <div class="agent-grid" id="agentGrid"></div>
           <label>
             Response length
             <div class="mode-grid" id="modeGrid"></div>
           </label>
           <label>
-            Ask this agent
+            Action
+            <div class="task-switch">
+              <button class="task-option" id="singleTaskBtn" type="button">Ask one agent</button>
+              <button class="task-option" id="meetingTaskBtn" type="button">Meet agents</button>
+            </div>
+          </label>
+          <label>
+            Question / prompt
             <textarea id="questionInput" class="note-area" placeholder="What do you want this agent to do next?"></textarea>
           </label>
-          <button class="primary" id="askBtn" type="button">Ask AI</button>
-          <label>
-            Meeting agents
-            <div class="meeting-grid" id="meetingAgentGrid"></div>
-          </label>
-          <label class="inline-check">
-            <input id="activeMeetingInput" type="checkbox">
-            <span>Active Meeting</span>
-          </label>
-          <button class="secondary" id="meetingBtn" type="button">Meet Agents</button>
-          <div class="button-row">
+          <div class="task-panel" id="singleTaskPanel">
+            <div class="agent-grid" id="agentGrid"></div>
+            <button class="primary" id="askBtn" type="button">Ask selected agent</button>
+          </div>
+          <div class="task-panel hidden" id="meetingTaskPanel">
+            <label>
+              Meeting agents
+              <div class="meeting-grid" id="meetingAgentGrid"></div>
+            </label>
+            <label class="inline-check">
+              <input id="activeMeetingInput" type="checkbox">
+              <span>Active Meeting</span>
+            </label>
+            <button class="primary" id="meetingBtn" type="button">Meet checked agents</button>
+          </div>
+          <div class="button-row three">
             <button class="secondary" id="exportBtn" type="button">Export</button>
             <button class="secondary" id="loadSampleBtn" type="button">Sample</button>
             <button class="secondary danger" id="clearBtn" type="button">Clear</button>
@@ -1295,6 +1350,8 @@
     let workspaceMode = state.workspaceMode || "research";
     let activeAgent = state.activeAgent || defaultAgent(workspaceMode);
     let responseMode = state.responseMode || "short";
+    let taskMode = state.taskMode || "single";
+    let journalView = state.journalView || "paper";
     let busy = false;
     let roomPollTimer = null;
     let sessionRole = "user";
@@ -1316,6 +1373,9 @@
       roomComment: document.getElementById("roomCommentInput"),
       activeMeeting: document.getElementById("activeMeetingInput"),
       journalPanel: document.getElementById("journalPanel"),
+      journalTabs: document.getElementById("journalTabs"),
+      paperViewBtn: document.getElementById("paperViewBtn"),
+      roomViewBtn: document.getElementById("roomViewBtn"),
       agentPanelTitle: document.getElementById("agentPanelTitle"),
       researchModeBtn: document.getElementById("researchModeBtn"),
       journalModeBtn: document.getElementById("journalModeBtn"),
@@ -1332,6 +1392,10 @@
       toast: document.getElementById("toast"),
       ask: document.getElementById("askBtn"),
       meeting: document.getElementById("meetingBtn"),
+      singleTaskBtn: document.getElementById("singleTaskBtn"),
+      meetingTaskBtn: document.getElementById("meetingTaskBtn"),
+      singleTaskPanel: document.getElementById("singleTaskPanel"),
+      meetingTaskPanel: document.getElementById("meetingTaskPanel"),
       thai: document.getElementById("thaiBtn"),
       english: document.getElementById("englishBtn"),
       mobileThai: document.getElementById("mobileThaiBtn"),
@@ -1349,13 +1413,17 @@
 
     document.getElementById("researchModeBtn").addEventListener("click", () => setWorkspaceMode("research"));
     document.getElementById("journalModeBtn").addEventListener("click", () => setWorkspaceMode("journal"));
+    document.getElementById("paperViewBtn").addEventListener("click", () => setJournalView("paper"));
+    document.getElementById("roomViewBtn").addEventListener("click", () => setJournalView("room"));
+    document.getElementById("singleTaskBtn").addEventListener("click", () => setTaskMode("single"));
+    document.getElementById("meetingTaskBtn").addEventListener("click", () => setTaskMode("meeting"));
     document.getElementById("newProjectBtn").addEventListener("click", newProject);
     document.getElementById("saveProjectBtn").addEventListener("click", saveProject);
     document.getElementById("deleteProjectBtn").addEventListener("click", deleteProject);
     document.getElementById("mobileSaveBtn").addEventListener("click", saveProject);
     document.getElementById("askBtn").addEventListener("click", askAI);
     document.getElementById("meetingBtn").addEventListener("click", meetAgents);
-    document.getElementById("mobileAskBtn").addEventListener("click", askAI);
+    document.getElementById("mobileAskBtn").addEventListener("click", runPrimaryAction);
     document.getElementById("copyBtn").addEventListener("click", copyOutput);
     document.getElementById("mobileCopyBtn").addEventListener("click", copyOutput);
     document.getElementById("thaiBtn").addEventListener("click", () => translateOutput("th"));
@@ -1405,6 +1473,8 @@
         workspaceMode: "research",
         activeAgent: "summary",
         responseMode: "short",
+        taskMode: "single",
+        journalView: "paper",
         activeProjectId: id,
         roomName: "",
         projects: [{
@@ -1423,6 +1493,8 @@
       state.workspaceMode = workspaceMode;
       state.activeAgent = activeAgent;
       state.responseMode = responseMode;
+      state.taskMode = taskMode;
+      state.journalView = journalView;
       state.roomName = els.roomName?.value || state.roomName || "";
       localStorage.setItem(storeKey, JSON.stringify(state));
     }
@@ -1462,11 +1534,11 @@
       renderPaper(project);
       renderRoom(project);
       els.activeTitle.textContent = project.title || "Untitled research note";
-      els.activeLabel.textContent = `${agentName(activeAgent)} / ${modeName(responseMode)}`;
       renderWorkspaceMode();
       renderAgents();
       renderMeetingAgents();
       renderModes();
+      renderTaskMode();
       renderProjects();
       renderHistory();
       if (project.lastOutput) setOutput(project.lastOutput);
@@ -1494,7 +1566,7 @@
           activeAgent = button.dataset.agent;
           persist();
           renderAgents();
-          els.activeLabel.textContent = `${agentName(activeAgent)} / ${modeName(responseMode)}`;
+          updateActiveLabel();
           if (!els.promptModal.classList.contains("hidden")) renderPromptModal();
         });
       });
@@ -1515,10 +1587,12 @@
 
     function renderWorkspaceMode() {
       document.body.dataset.workspaceMode = workspaceMode;
+      document.body.dataset.journalView = journalView;
+      document.body.dataset.taskMode = taskMode;
       els.researchModeBtn.classList.toggle("active", workspaceMode === "research");
       els.journalModeBtn.classList.toggle("active", workspaceMode === "journal");
-      els.journalPanel.classList.toggle("hidden", workspaceMode !== "journal");
-      els.roomPanel.classList.toggle("hidden", workspaceMode !== "journal");
+      els.journalTabs.classList.toggle("hidden", workspaceMode !== "journal");
+      renderJournalView();
       els.agentPanelTitle.textContent = workspaceMode === "journal" ? "Journal Club Agents" : "Research Agents";
       if (!busy) els.status.textContent = workspaceMode === "journal" ? "Journal club" : "Research journal";
       startRoomPolling();
@@ -1528,13 +1602,61 @@
       workspaceMode = nextMode;
       activeAgent = defaultAgent(workspaceMode);
       if (workspaceMode === "journal" && responseMode === "short") responseMode = "normal";
+      if (workspaceMode === "journal" && journalView !== "room") journalView = "paper";
       persist();
       renderWorkspaceMode();
       renderAgents();
       renderMeetingAgents();
       renderModes();
-      els.activeLabel.textContent = `${agentName(activeAgent)} / ${modeName(responseMode)}`;
+      renderTaskMode();
       toast(workspaceMode === "journal" ? "Journal Club mode." : "Research Journal mode.");
+    }
+
+    function setJournalView(nextView) {
+      journalView = nextView === "room" ? "room" : "paper";
+      persist();
+      renderJournalView();
+      toast(journalView === "room" ? "Room view." : "Paper view.");
+    }
+
+    function renderJournalView() {
+      const journal = workspaceMode === "journal";
+      document.body.dataset.journalView = journalView;
+      els.paperViewBtn.classList.toggle("active", journalView === "paper");
+      els.roomViewBtn.classList.toggle("active", journalView === "room");
+      els.journalPanel.classList.toggle("hidden", !journal || journalView !== "paper");
+      els.roomPanel.classList.toggle("hidden", !journal || journalView !== "room");
+    }
+
+    function setTaskMode(nextMode) {
+      taskMode = nextMode === "meeting" ? "meeting" : "single";
+      persist();
+      renderTaskMode();
+      toast(taskMode === "meeting" ? "Meeting mode." : "Single agent mode.");
+    }
+
+    function renderTaskMode() {
+      document.body.dataset.taskMode = taskMode;
+      els.singleTaskBtn.classList.toggle("active", taskMode === "single");
+      els.meetingTaskBtn.classList.toggle("active", taskMode === "meeting");
+      els.singleTaskPanel.classList.toggle("hidden", taskMode !== "single");
+      els.meetingTaskPanel.classList.toggle("hidden", taskMode !== "meeting");
+      updateActiveLabel();
+      updateMobilePrimaryLabel();
+    }
+
+    function updateActiveLabel() {
+      els.activeLabel.textContent = taskMode === "meeting"
+        ? `Meeting / ${modeName(responseMode)}`
+        : `${agentName(activeAgent)} / ${modeName(responseMode)}`;
+    }
+
+    function updateMobilePrimaryLabel() {
+      if (busy) {
+        els.mobileAsk.textContent = taskMode === "meeting" ? "Meeting..." : "Asking...";
+        return;
+      }
+      els.mobileAsk.textContent = taskMode === "meeting" ? "Meet" : "Ask AI";
     }
 
     function renderModes() {
@@ -1548,7 +1670,7 @@
           responseMode = button.dataset.mode;
           persist();
           renderModes();
-          els.activeLabel.textContent = `${agentName(activeAgent)} / ${modeName(responseMode)}`;
+          updateActiveLabel();
         });
       });
     }
@@ -1695,15 +1817,22 @@
       setWorkspaceMode(sample.mode);
       responseMode = sample.modeId || "normal";
       activeAgent = sample.agents[0] || defaultAgent(sample.mode);
+      taskMode = sample.useMeeting ? "meeting" : "single";
+      if (sample.mode === "journal") journalView = "paper";
       els.question.value = sample.prompt;
       persist();
+      renderWorkspaceMode();
       renderAgents();
       renderMeetingAgents();
       renderModes();
+      renderTaskMode();
       setMeetingSelection(sample.agents);
-      els.activeLabel.textContent = `${agentName(activeAgent)} / ${modeName(responseMode)}`;
       closeWorkflowModal();
-      toast(sample.useMeeting ? "Workflow loaded. Use Meet Agents." : "Workflow loaded. Use Ask AI.");
+      toast(sample.useMeeting ? "Workflow loaded. Use Meet checked agents." : "Workflow loaded. Use Ask selected agent.");
+    }
+
+    function runPrimaryAction() {
+      return taskMode === "meeting" ? meetAgents() : askAI();
     }
 
     function newProject() {
@@ -1916,6 +2045,8 @@
       workspaceMode = "journal";
       activeAgent = "journalclub";
       responseMode = responseMode === "short" ? "normal" : responseMode;
+      taskMode = "single";
+      journalView = "paper";
       els.question.value = [
         "Analyze this paper for journal club.",
         "Use: clinical question, design, population, intervention/exposure, outcome, results, validity, bias, applicability, limitations, and 3 discussion questions.",
@@ -1930,7 +2061,7 @@
       renderWorkspaceMode();
       renderAgents();
       renderModes();
-      els.activeLabel.textContent = `${agentName(activeAgent)} / ${modeName(responseMode)}`;
+      renderTaskMode();
       await askAI();
     }
 
@@ -2222,12 +2353,14 @@
       els.mobileThai.disabled = next;
       els.mobileEnglish.disabled = next;
       els.mobileAsk.disabled = next;
-      els.ask.textContent = next ? "Asking..." : "Ask AI";
-      els.meeting.textContent = next ? "Meeting..." : "Meet Agents";
+      els.ask.textContent = next ? "Asking..." : "Ask selected agent";
+      els.meeting.textContent = next ? "Meeting..." : "Meet checked agents";
       els.thai.textContent = next ? "..." : "TH";
       els.english.textContent = next ? "..." : "EN";
-      els.mobileAsk.textContent = next ? "Asking..." : "Ask AI";
-      els.status.textContent = next ? "AI working" : "Local notes";
+      updateMobilePrimaryLabel();
+      els.status.textContent = next
+        ? "AI working"
+        : (workspaceMode === "journal" ? "Journal club" : "Research journal");
     }
 
     function renderMeetingOutput(data, plainText) {
@@ -2530,11 +2663,12 @@
       workspaceMode = "research";
       activeAgent = "question";
       responseMode = "short";
+      taskMode = "single";
       saveProject(false);
       renderWorkspaceMode();
       renderAgents();
       renderModes();
-      els.activeLabel.textContent = `${agentName(activeAgent)} / ${modeName(responseMode)}`;
+      renderTaskMode();
       toast("Sample loaded.");
     }
 
