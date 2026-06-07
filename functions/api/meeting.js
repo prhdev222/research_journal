@@ -137,6 +137,20 @@ export async function onRequestPost({ request, env }) {
       await upsertProjectSummary(db, project.id, memoryUpdates.projectSummary);
     }
 
+    if (hasPocketBase(env)) {
+      try {
+        await archiveToPocketBase(env, {
+          project,
+          question,
+          turns,
+          synthesis: finalResult.output,
+          projectSummary: memoryUpdates.projectSummary
+        });
+      } catch (_) {
+        // PocketBase archive is best-effort — don't fail the meeting response
+      }
+    }
+
     return json({
       meeting_id: meetingId,
       memory_enabled: memoryAvailable,
@@ -388,6 +402,36 @@ function buildMemoryUpdates({ project, question, turns, synthesis, synthesisLabe
 
 function finalSynthesizer(mode) {
   return mode === "research" ? "fisher" : "neo";
+}
+
+function hasPocketBase(env) {
+  return Boolean(env.PB_URL && env.PB_TOKEN);
+}
+
+async function archiveToPocketBase(env, { project, question, turns, synthesis, projectSummary }) {
+  const pbUrl = String(env.PB_URL).replace(/\/$/, "");
+  const agentsSummary = turns.map((t) => `${t.label}: ${t.output.slice(0, 400)}`).join("\n\n");
+  const res = await fetch(`${pbUrl}/api/collections/ra_meetings/records`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${env.PB_TOKEN}`
+    },
+    body: JSON.stringify({
+      title: project.title,
+      mode: project.mode,
+      topic: project.topic || "",
+      paper_title: project.paperTitle || "",
+      question: (question || "").slice(0, 1400),
+      synthesis: synthesis.slice(0, 4000),
+      agents_summary: agentsSummary.slice(0, 4000),
+      project_summary: projectSummary.slice(0, 1200)
+    })
+  });
+  if (!res.ok) {
+    const err = await res.text().catch(() => res.status);
+    throw new Error(`PocketBase archive failed: ${err}`);
+  }
 }
 
 function compactMemory(existing, latest) {
